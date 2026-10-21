@@ -1,0 +1,245 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// Роли и системные перечисления
+// -------------------------------------------------------------
+
+enum UserRole {
+  CLIENT        // Предприниматель / Бухгалтер / Директор[cite: 5]
+  UNDERWRITER   // Кредитный аналитик банка[cite: 4]
+  ADMIN
+}
+
+enum ApplicationStatus {
+  DRAFT          // Черновик (формируется из диалога или формы)
+  SUBMITTED      // Заявка отправлена клиентом[cite: 13]
+  VALIDATING     // Автоматическая проверка корректности данных
+  ENRICHING      // Обогащение данными из моков ФНС, ЕГРЮЛ, БКИ[cite: 10, 13]
+  SCORING        // Автоматический расчет рисков и баллов[cite: 14]
+  NEED_INFO      // Запрос дополнительных сведений/документов у клиента[cite: 13, 15]
+  MANUAL_REVIEW  // Ручной анализ нестандартного кейса андеррайтером[cite: 4, 14]
+  COUNTER_OFFER  // Предложение альтернативных условий (сумма/срок/ставка)
+  APPROVED       // Одобрено банком[cite: 15]
+  REJECTED       // Отказ с указанием причины[cite: 15]
+  SIGNING        // Этап подписания кредитного договора клиентом[cite: 11, 15]
+  DISBURSED      // Средства зачислены на расчетный счет[cite: 11, 15]
+}
+
+enum RiskGrade {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SenderType {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+// -------------------------------------------------------------
+// Пользователи и компании
+// -------------------------------------------------------------
+
+model User {
+  id            String            @id @default(uuid())
+  phone         String            @unique // Номер телефона в формате +79991234567
+  email         String?           @unique
+  passwordHash  String
+  fullName      String
+  position      String            // Собственник, Директор, Бухгалтер
+  role          UserRole          @default(CLIENT)
+  companies     Company[]
+  chatSessions  ChatSession[]
+  statusChanges ApplicationStatusHistory[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([phone])
+  @@index([role])
+}
+
+model Company {
+  id                String            @id @default(uuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  inn               String            @unique
+  ogrn              String
+  name              String
+  legalForm         String            // ИП или ООО
+  okved             String            // Основной код ОКВЭД[cite: 7, 13]
+  okvedTitle        String            // Наименование деятельности
+  registrationDate  DateTime          // Дата регистрации (для проверки стажа бизнеса)[cite: 13, 14]
+  
+  // Базовые финансовые показатели компании[cite: 14]
+  monthlyRevenue    Decimal           @db.Decimal(15, 2)
+  monthlyExpenses   Decimal           @db.Decimal(15, 2)
+  currentDebtLoad   Decimal           @db.Decimal(15, 2) // Сумма текущих платежей по кредитам[cite: 14]
+  
+  applications      LoanApplication[]
+  newsFeed          NewsItem[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([inn])
+  @@index([okved])
+}
+
+// -------------------------------------------------------------
+// Линейка кредитных продуктов банка
+// -------------------------------------------------------------
+
+model CreditProduct {
+  id              String            @id @default(uuid())
+  code            String            @unique // OVERDRAFT, WORKING_CAPITAL, INVESTMENT[cite: 4, 13]
+  title           String
+  description     String            // Простое объяснение сути продукта[cite: 4, 5]
+  minAmount       Decimal           @db.Decimal(15, 2)
+  maxAmount       Decimal           @db.Decimal(15, 2)
+  minTermMonths   Int
+  maxTermMonths   Int
+  baseRate        Float             // Базовая процентная ставка (% годовых)
+  minScoringScore Int               // Минимальный порог скоринга для авто-одобрения[cite: 14]
+  isActive        Boolean           @default(true)
+  
+  applications    LoanApplication[]
+  createdAt       DateTime          @default(now())
+}
+
+// -------------------------------------------------------------
+// Сквозной контекст диалога (до и после логина)
+// -------------------------------------------------------------
+
+model ChatSession {
+  id                 String           @id @default(uuid())
+  guestToken         String?          @unique // Временный токен для гостей без авторизации[cite: 4, 13]
+  userId             String?
+  user               User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Данные, извлеченные ассистентом из диалога предпринимателя[cite: 4, 13]
+  extractedPurpose   String?
+  extractedAmount    Decimal?         @db.Decimal(15, 2)
+  extractedTerm      Int?
+  suggestedProductId String?
+  
+  messages           ChatMessage[]
+  applications       LoanApplication[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([guestToken])
+}
+
+model ChatMessage {
+  id            String       @id @default(uuid())
+  sessionId     String
+  session       ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender        SenderType
+  text          String
+  payload       Json?        // Для карточек подсказок, быстрых кнопок и инфо-графиков
+  createdAt     DateTime     @default(now())
+
+  @@index([sessionId])
+}
+
+// -------------------------------------------------------------
+// Кредитная заявка и конвейер обработки
+// -------------------------------------------------------------
+
+model LoanApplication {
+  id                  String                    @id @default(uuid())
+  companyId           String
+  company             Company                   @relation(fields: [companyId], references: [id])
+  productId           String
+  product             CreditProduct             @relation(fields: [productId], references: [id])
+  chatSessionId       String?
+  chatSession         ChatSession?              @relation(fields: [chatSessionId], references: [id], onDelete: SetNull)
+  
+  // Исходный запрос предпринимателя[cite: 4, 13]
+  requestedAmount     Decimal                   @db.Decimal(15, 2)
+  requestedTermMonths Int
+  purpose             String                    // Цель финансирования[cite: 13]
+  status              ApplicationStatus         @default(DRAFT)
+  
+  // Результаты проверок и обогащения данных (моки ЕГРЮЛ, ФНС, БКИ)[cite: 10, 13]
+  // Структура JSON: { egrul: {...}, fns: { taxDebt: 0, blocks: false }, bki: { overdueDays: 0, activeLoans: 1 } }
+  enrichmentData      Json?
+  
+  // Данные скоринговой оценки риска[cite: 14]
+  scoringScore        Int?                      // 0 - 1000 баллов[cite: 14]
+  riskGrade           RiskGrade?
+  // Структура JSON: { positiveFactors: [...], negativeFactors: [...], debtToIncomeRatio: 0.32 }
+  scoringFactors      Json?
+  
+  // Итоговые условия или Контр-оффер банка[cite: 15]
+  approvedAmount      Decimal?                  @db.Decimal(15, 2)
+  approvedTermMonths  Int?
+  approvedRate        Float?
+  decisionNote        String?                   // Комментарий банка / причина дозапроса данных[cite: 13, 15]
+  
+  statusHistory       ApplicationStatusHistory[]
+  documents           ApplicationDocument[]
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+}
+
+model ApplicationStatusHistory {
+  id            String            @id @default(uuid())
+  applicationId String
+  application   LoanApplication   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  fromStatus    ApplicationStatus?
+  toStatus      ApplicationStatus
+  actorRole     UserRole          // Кто совершил переход (CLIENT, UNDERWRITER)[cite: 4, 6]
+  changedById   String?
+  changedBy     User?             @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  comment       String?           // Служебная записка андеррайтера или системный лог[cite: 4, 6]
+  createdAt     DateTime          @default(now())
+
+  @@index([applicationId])
+}
+
+model ApplicationDocument {
+  id            String          @id @default(uuid())
+  applicationId String
+  application   LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          String          // STATEMENT (выписка), BALANCE (бухбаланс), CONTRACT (договор)[cite: 13, 15]
+  title         String
+  fileUrl       String
+  isSigned      Boolean         @default(false) // Моделирование факта подписания[cite: 11, 15]
+  signedAt      DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@index([applicationId])
+}
+
+// -------------------------------------------------------------
+// Персонализированная лента новостей
+// -------------------------------------------------------------
+
+model NewsItem {
+  id             String             @id @default(uuid())
+  companyId      String?
+  company        Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  targetOkved    String?            // Фильтр по отрасли бизнеса (например "47." для ритейла)[cite: 7, 13]
+  targetStage    ApplicationStatus? // Показ контекстной новости под текущий статус
+  title          String
+  summary        String
+  content        String
+  category       String             // "Господдержка", "Аналитика рынка", "Налоги", "Советы экспертов"
+  createdAt      DateTime           @default(now())
+
+  @@index([targetOkved])
+  @@index([targetStage])
+}
