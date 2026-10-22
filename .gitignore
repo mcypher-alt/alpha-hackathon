@@ -65,3 +65,6 @@ Thumbs.db
 .turbo/
 *.tsbuildinfo
 next-env.d.ts
+submission-manifest.json
+output/
+**/__pycache__/

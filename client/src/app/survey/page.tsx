@@ -1,385 +1,498 @@
-'use client';
-
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-
-interface SurveyQuestion {
+"use client";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Sparkles,
+  SlidersHorizontal,
+} from "lucide-react";
+import {
+  PRODUCTS,
+  GOALS,
+  USAGES,
+  TERMS,
+  AGES,
+  COLL,
+  ASSET,
+  REFI,
+  REPAY,
+  type Answers,
+} from "@/lib/catalog";
+import { matches } from "@/lib/recommendations";
+import { api, stored, save, money } from "@/lib/api";
+import { ErrorBox } from "@/components/common";
+type Question = {
   id: string;
   title: string;
   help?: string;
-  type?: 'number' | 'text';
   options?: string[][];
+  type?: string;
+};
+function questions(a: Answers): Question[] {
+  const goal =
+    a.purpose === "other" ? a.confirmedPurpose || "other" : a.purpose;
+  const q: Question[] = [
+    {
+      id: "purpose",
+      title: "На что нужны деньги?",
+      help: "Выберите задачу вашего бизнеса. Банковский продукт подберём сами.",
+      options: GOALS,
+    },
+  ];
+  if (a.purpose === "other") {
+    q.push({
+      id: "other",
+      title: "Расскажите о своей задаче",
+      type: "text",
+      help: "Локальный обученный классификатор предложит направление. Решение подтвердите вы.",
+    });
+    const suggested = GOALS.find(([code]) => code === a.inferredPurpose)?.[1];
+    q.push({
+      id: "confirmedPurpose",
+      title: "Проверьте направление финансирования",
+      help:
+        a.inferredPurpose && a.inferredPurpose !== "other"
+          ? `Предварительно: ${suggested}. Подтвердите подходящую цель или выберите другую. Модель может ошибаться.`
+          : "Не удалось уверенно определить цель. Выберите направление самостоятельно; другая задача останется на уточнение.",
+      options: GOALS,
+    });
+  }
+  if (!["auto", "property", "refi"].includes(goal || ""))
+    q.push({
+      id: "usage",
+      title: "Как будете пользоваться деньгами?",
+      help: "Способ выдачи — предпочтение, а не повод для отказа.",
+      options: USAGES,
+    });
+  q.push(
+    {
+      id: "amount",
+      title: "Сколько денег нужно?",
+      type: "number",
+      help: "Планируемая сумма финансирования или кредитный лимит.",
+    },
+    {
+      id: "term",
+      title: "Когда сможете вернуть деньги?",
+      help: "Для кредитной линии — срок возврата каждого транша, а не срок действия лимита.",
+      options: TERMS,
+    },
+    { id: "age", title: "Как давно работает бизнес?", options: AGES },
+  );
+  if (goal === "refi")
+    q.push({
+      id: "refi_type",
+      title: "Какой долг хотите заменить?",
+      options: REFI,
+    });
+  if (["auto", "property"].includes(goal || ""))
+    q.push({
+      id: "asset",
+      title: "Готовы оформить покупку в залог?",
+      help: "Речь о покупаемом автомобиле или недвижимости. Другое имущество для этого не требуется.",
+      options: ASSET,
+    });
+  if (Number(a.amount) >= 500000)
+    q.push({
+      id: "collateral",
+      title: "Есть ли другое имущество для залога?",
+      help: "Ответ не влияет на залог покупаемого автомобиля или недвижимости.",
+      options: COLL,
+    });
+  q.push({
+    id: "repay",
+    title: "Как удобнее платить?",
+    help: "Учтём пожелание. Допустимый график банк подтвердит при рассмотрении.",
+    options: REPAY,
+  });
+  return q;
 }
-
-// Полный каталог 13 продуктов Альфа-Банка из спецификации[cite: 20, 24]
-export const PRODUCTS = [
-  { id: 'K1', name: 'Бизнес-кредит без залога', short: 'Кредит без залога', min: 300000, max: 30000000, term: '12–60 мес.', kind: 'loan', minm: 12, maxm: 60, pledge: 'none', goals: ['operations', 'gap', 'equipment', 'auto', 'market', 'other'], usage: ['single'], addons: 'Подписка на бизнес-кредит; «Защита бизнеса»', url: 'https://alfabank.ru/sme/profits/businesscredit/' },
-  { id: 'K2', name: 'Бизнес-кредит с залогом', short: 'Кредит с залогом', min: 500000, max: 150000000, term: '12–120 мес.', kind: 'loan', minm: 12, maxm: 120, pledge: 'owned', goals: ['operations', 'equipment', 'auto', 'property', 'market', 'other'], usage: ['single'], addons: '«Защита бизнеса»; применимость подписки уточняется', url: 'https://alfabank.ru/sme/profits/businesscredit/' },
-  { id: 'L1', name: 'Возобновляемая линия без залога', short: 'ВКЛ без залога', min: 300000, max: 30000000, term: 'Транш 1–6 мес. / до 12 с подпиской', kind: 'tranche', minm: 1, maxm: 12, pledge: 'none', goals: ['operations', 'gap', 'market', 'other'], usage: ['revolving', 'stages'], addons: 'Подписка на ВКЛ; до 12 мес. на транш', url: 'https://alfabank.ru/sme/profits/creditline/adv/' },
-  { id: 'L2', name: 'Возобновляемая линия с залогом', short: 'ВКЛ с залогом', min: 500000, max: 50000000, term: 'Линия до 36 мес.; транш 6 мес.', kind: 'tranche', minm: 1, maxm: 6, pledge: 'owned', goals: ['operations', 'gap', 'market', 'other'], usage: ['revolving', 'stages'], addons: '«Защита бизнеса»', url: 'https://alfabank.ru/sme/profits/creditline/adv/' },
-  { id: 'L3', name: 'Невозобновляемая линия с залогом', short: 'НКЛ с залогом', min: 500000, max: 50000000, term: 'До 60 мес.; выдача частями', kind: 'loan', minm: 1, maxm: 60, pledge: 'owned', goals: ['operations', 'equipment', 'other'], usage: ['stages'], addons: '«Защита бизнеса»', url: 'https://alfabank.ru/sme/profits/creditline/adv/' },
-  { id: 'O1', name: 'Овердрафт', short: 'Овердрафт', min: 300000, max: 20000000, term: 'Транш 60 дней / 90 с подпиской', kind: 'overdraft', minm: 1, maxm: 3, pledge: 'none', goals: ['gap', 'operations', 'market', 'other'], usage: ['balance', 'revolving'], addons: 'Подписка на овердрафт', url: 'https://alfabank.ru/sme/profits/overdraft/' },
-  { id: 'A1', name: 'Альфа-Старт', short: 'Альфа-Старт', min: 50000, max: 1000000, term: 'Транш 1–6 мес. / до 12 с подпиской', kind: 'tranche', minm: 1, maxm: 12, pledge: 'none', goals: ['operations', 'gap', 'equipment', 'market', 'other'], usage: ['stages', 'revolving'], addons: 'Подписка на Альфа-Старт', url: 'https://alfabank.ru/sme/profits/alfastart/' },
-  { id: 'M1', name: 'Альфа-Селлер Кредит', short: 'Альфа-Селлер', min: null, max: 20000000, term: 'Транш 1–12 мес.', kind: 'tranche', minm: 1, maxm: 12, pledge: 'none', goals: ['market'], usage: ['single', 'stages', 'revolving'], addons: 'Подписка и «Защита бизнеса»', url: 'https://alfabank.ru/sme/profits/creditsellers/' },
-  { id: 'C1', name: 'Business One Credit', short: 'Business One Credit', min: null, max: 1000000, term: 'Льготный период до 60/120 дней', kind: 'card', minm: null, maxm: null, pledge: 'none', goals: ['operations', 'gap', 'market', 'other'], usage: ['card'], addons: 'Базовый / Выгодный / Премиальный тариф', url: 'https://alfabank.ru/sme/profits/creditcard/' },
-  { id: 'T1', name: 'Автокредит для бизнеса', short: 'Автокредит', min: null, max: 50000000, term: 'До 120 мес.', kind: 'loan', minm: null, maxm: 120, pledge: 'purchase', goals: ['auto'], usage: ['single'], addons: '«Защита бизнеса»; КАСКО', url: 'https://alfabank.ru/sme/profits/autocredit/' },
-  { id: 'N1', name: 'Бизнес-ипотека', short: 'Бизнес-ипотека', min: null, max: 150000000, term: 'До 120 мес.; бизнес от 9 мес.', kind: 'loan', minm: null, maxm: 120, pledge: 'purchase', goals: ['property'], usage: ['single'], addons: '«Защита бизнеса»', url: 'https://alfabank.ru/sme/profits/businessipoteka/' },
-  { id: 'R1', name: 'Рефинансирование без залога', short: 'Рефинанс. без залога', min: 300000, max: 30000000, term: '12–60 мес.; бизнес от 9 мес.', kind: 'loan', minm: 12, maxm: 60, pledge: 'none', goals: ['refi'], usage: ['single'], addons: 'Подписка / «Защита бизнеса»', url: 'https://alfabank.ru/sme/profits/refin/' },
-  { id: 'R2', name: 'Рефинансирование с залогом', short: 'Рефинанс. с залогом', min: 500000, max: 150000000, term: '12–120 мес.; бизнес от 9 мес.', kind: 'loan', minm: 12, maxm: 120, pledge: 'owned', goals: ['refi'], usage: ['single'], addons: '«Защита бизнеса»', url: 'https://alfabank.ru/sme/profits/refin/' },
-];
-
-const GOALS = [
-  ['operations', 'Текущие расходы, закупки, сырьё'],
-  ['gap', 'Временная нехватка денег на счёте'],
-  ['equipment', 'Станки, оборудование, развитие'],
-  ['auto', 'Автомобиль или спецтехника'],
-  ['property', 'Офис, склад или другая недвижимость'],
-  ['refi', 'Погасить старые кредиты'],
-  ['market', 'Закупки и продажи на маркетплейсах'],
-  ['other', 'Другая задача — свободное описание'],
-];
-const USAGES = [
-  ['single', 'Всю сумму сразу'],
-  ['stages', 'Частями для одного проекта'],
-  ['revolving', 'Взял → вернул → взял снова'],
-  ['balance', 'Оплачивать со счёта при нехватке денег'],
-  ['card', 'Оплачивать покупки картой'],
-  ['unsure', 'Не знаю — подскажите'],
-];
-const TERMS = [
-  ['2', 'До 2 месяцев'],
-  ['3', 'До 3 месяцев'],
-  ['6', 'До 6 месяцев'],
-  ['12', 'До года'],
-  ['36', 'До 3 лет'],
-  ['60', 'До 5 лет'],
-  ['120', 'До 10 лет'],
-];
-const AGES = [
-  ['unregistered', 'Компания или ИП ещё не зарегистрированы'],
-  ['new', 'Зарегистрированы менее 9 месяцев'],
-  ['old', '9 месяцев и больше'],
-  ['unknown', 'Не знаю точно'],
-];
-const COLL = [
-  ['yes', 'Да, есть подходящее имущество'],
-  ['no', 'Нет, только без залога'],
-  ['compare', 'Хочу сравнить варианты'],
-];
-const ASSET = [
-  ['yes', 'Да, приобретаемый объект может быть в залоге'],
-  ['no', 'Нет, не готов оформлять покупку в залог'],
-  ['unknown', 'Нужно объяснить, как это работает'],
-];
-const REFI = [
-  ['single', 'Обычный бизнес-кредит'],
-  ['line', 'Кредитная линия'],
-  ['od', 'Овердрафт'],
-  ['card', 'Кредитная карта'],
-  ['other', 'Другое / не знаю'],
-];
-const REPAY = [
-  ['equal', 'Одинаковые платежи'],
-  ['decline', 'Уменьшающиеся платежи'],
-  ['defer', 'Платить меньше в начале'],
-  ['season', 'Учитывать сезонные поступления'],
-  ['unknown', 'Не знаю'],
-];
-
-const RUB = (num: number) => Number(num).toLocaleString('ru-RU') + ' ₽';
-
-function inferGoal(s = '') {
-  const text = s.toLowerCase();
-  if (/рефинанс|перекредит|закрыть.*кредит/.test(text)) return 'refi';
-  if (/склад|недвиж|офис|помещени/.test(text)) return 'property';
-  if (/автомоб|машин|грузов|спецтех|транспорт/.test(text)) return 'auto';
-  if (/станок|оборудован/.test(text)) return 'equipment';
-  if (/маркетплейс|ozon|wildberries/.test(text)) return 'market';
-  if (/кассов|времен.*нехват/.test(text)) return 'gap';
-  if (/товар|оборотн|поставщ|сырь|зарплат/.test(text)) return 'operations';
-  return 'other';
-}
-
-export default function SurveyPage() {
-  const router = useRouter();
-  const [answer, setAnswer] = useState<Record<string, string>>({});
-  const [stage, setStage] = useState(0);
-  const [amountInput, setAmountInput] = useState('3000000');
-  const [otherInput, setOtherInput] = useState('');
-
-  const currentGoal = answer.purpose === 'other' ? inferGoal(answer.other) : answer.purpose;
-
-  // Формирование адаптивной цепочки вопросов Q1-Q8[cite: 18, 19, 24]
-  const getQuestions = (): SurveyQuestion[] => {
-    const q: SurveyQuestion[] = [
-      { id: 'purpose', title: 'Для чего вашему бизнесу нужны деньги?', help: 'Выберите бизнес-задачу, а не банковский продукт.', options: GOALS },
-    ];
-    if (answer.purpose === 'other') {
-      q.push({ id: 'other', title: 'Опишите свою задачу своими словами', type: 'text', help: 'Текст классифицируется ML-моделью для выбора ветки конвейера.' });
-    }
-    if (answer.purpose && !['auto', 'property', 'refi'].includes(currentGoal)) {
-      q.push({ id: 'usage', title: 'Как хотите пользоваться деньгами?', help: 'Помогает ранжировать разовый кредит, линию или овердрафт.', options: USAGES });
-    }
-    q.push({ id: 'amount', title: 'Какая сумма вам нужна?', type: 'number', help: 'Укажите планируемую сумму или желаемый лимит.' });
-    q.push({ id: 'term', title: 'Когда хотите вернуть деньги?', help: 'Для кредитной линии речь идёт о сроке возврата каждого транша.', options: TERMS });
-    q.push({ id: 'age', title: 'Как давно зарегистрирован ваш бизнес?', options: AGES });
-
-    if (currentGoal === 'refi') q.push({ id: 'refi_type', title: 'Какой вид кредита хотите заменить?', options: REFI });
-    if (currentGoal === 'auto' || currentGoal === 'property') {
-      q.push({ id: 'asset', title: 'Готовы оформить покупаемый объект в залог?', options: ASSET });
-    }
-    if (Number(answer.amount) >= 500000) {
-      q.push({ id: 'collateral', title: 'Готовы предоставить имеющееся имущество в залог?', options: COLL });
-    }
-    q.push({ id: 'repay', title: 'Как удобнее возвращать деньги?', options: REPAY });
-    return q;
-  };
-
-  // Матрица правил отсечения[cite: 21, 22, 24]
-  const evaluateProduct = (p: (typeof PRODUCTS)[0]) => {
-    const excluded: string[] = [];
-    const pending: string[] = [];
-    let soft = 0;
-    const amt = Number(answer.amount);
-    const months = Number(answer.term);
-
-    if (answer.purpose) {
-      if (currentGoal !== 'other' && !p.goals.includes(currentGoal)) excluded.push('Цель отличается от назначения продукта');
-      if (currentGoal === 'other') pending.push('Требуется уточнение назначения');
-    }
-    if (answer.usage && answer.usage !== 'unsure' && !p.usage.includes(answer.usage)) soft += 1;
-    if (answer.amount && amt > 0) {
-      if (p.min != null && amt < p.min) excluded.push(`Ниже минимальной суммы (${RUB(p.min)})`);
-      if (amt > p.max) excluded.push(`Выше максимального лимита (${RUB(p.max)})`);
-    }
-    if (answer.term && months > 0) {
-      if (p.kind === 'loan' && p.minm != null && months < p.minm) excluded.push(`Мин. срок: ${p.minm} мес.`);
-      if (p.kind === 'loan' && p.maxm != null && months > p.maxm) excluded.push(`Макс. срок: ${p.maxm} мес.`);
-      if (p.kind === 'tranche' && p.maxm != null && months > p.maxm) excluded.push('Для транша указан более короткий срок');
-      if (p.kind === 'overdraft' && months > 3) excluded.push('Для овердрафта максимум 60/90 дней');
-    }
-    if (answer.age === 'unregistered') excluded.push('Бизнес должен быть зарегистрирован');
-    if (answer.age === 'new' && ['N1', 'R1', 'R2'].includes(p.id)) excluded.push('Требуется от 9 месяцев работы бизнеса');
-    if (answer.collateral === 'no' && p.pledge === 'owned') excluded.push('Требуется залог имеющегося имущества');
-    if (answer.asset === 'no' && p.pledge === 'purchase') excluded.push('Требуется залог приобретаемого объекта');
-    if (currentGoal === 'refi' && ['od', 'card'].includes(answer.refi_type) && ['R1', 'R2'].includes(p.id)) {
-      excluded.push('Овердрафты и бизнес-карты по этой программе не рефинансируются');
-    }
-
-    return { p, excluded, pending, soft };
-  };
-
-  const qs = getQuestions();
-  const done = stage >= qs.length;
-  const currentQ = qs[stage];
-  const rows = PRODUCTS.map(evaluateProduct);
-  const fitted = rows
-    .filter((x) => !x.excluded.length)
-    .sort((a, b) => a.soft - b.soft || a.pending.length - b.pending.length);
-  const removed = rows.filter((x) => x.excluded.length);
-
-  const handleSelect = (id: string, val: string) => {
-    setAnswer((prev) => ({ ...prev, [id]: val }));
-    setStage((s) => s + 1);
-  };
-
-  // Переход на страницу оформления заявки (с проверкой авторизации)
-  const handleProceedToApplication = (product: (typeof PRODUCTS)[0]) => {
-    const query = new URLSearchParams({
-      productCode: product.id,
-      productName: product.name,
-      amount: answer.amount || '3000000',
-      term: answer.term || '24',
-      purpose: answer.other || answer.purpose || 'operations',
-    }).toString();
-
-    const targetUrl = `/apply?${query}`;
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-
-    if (!token) {
-      // Если клиент еще не авторизован — отправляем на логин с редиректом обратно в заявку
-      router.push(`/login?redirect=${encodeURIComponent(targetUrl)}`);
+function Survey() {
+  const params = useSearchParams();
+  const [a, setA] = useState<Answers>({}),
+    [step, setStep] = useState(0),
+    [ready, setReady] = useState(false),
+    [input, setInput] = useState(""),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const saved = stored<{ answers: Answers; step: number }>("alfa.survey", {
+      answers: {},
+      step: 0,
+    });
+    const goal = params.get("goal");
+    if (goal && GOALS.some((x) => x[0] === goal)) {
+      setA({ purpose: goal });
+      setStep(1);
     } else {
-      router.push(targetUrl);
+      setA(saved.answers);
+      setStep(saved.step);
     }
-  };
-
+    setReady(true);
+  }, [params]);
+  useEffect(() => {
+    if (ready) save("alfa.survey", { answers: a, step });
+  }, [a, step, ready]);
+  const qs = questions(a),
+    q = qs[step],
+    done = step >= qs.length;
+  const rows = matches(a),
+    remaining = rows.filter((r) => !r.excluded.length),
+    excluded = rows.filter((r) => r.excluded.length);
+  async function advance(value: string) {
+    setError("");
+    const clean = { ...a };
+    const old = questions(a);
+    for (const after of old.slice(step + 1)) delete clean[after.id];
+    if (
+      q.id === "amount" &&
+      (!Number.isFinite(Number(value)) ||
+        Number(value) <= 0 ||
+        Number(value) > 100000000000)
+    ) {
+      setError("Введите сумму от 1 до 100 млрд ₽");
+      return;
+    }
+    if (q.id === "other") {
+      if (value.trim().length < 5) {
+        setError("Добавьте немного подробностей о бизнес-задаче");
+        return;
+      }
+      setBusy(true);
+      try {
+        const result = await api<{
+          label: string;
+          confidence: number;
+          abstained: boolean;
+        }>("/applications/intent", {
+          method: "POST",
+          body: JSON.stringify({ text: value }),
+        });
+        clean.inferredPurpose = result.abstained ? "other" : result.label;
+        clean.intentConfidence = String(result.confidence);
+      } catch (e) {
+        setError((e as Error).message);
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
+    clean[q.id] = value;
+    setA(clean);
+    setStep(step + 1);
+    setInput("");
+  }
+  function apply(id: string) {
+    localStorage.removeItem("alfa.apply");
+    save("alfa.draft", {
+      productCode: id,
+      amount: a.amount,
+      term: a.term === "0" ? "12" : a.term,
+      purpose:
+        a.other ||
+        GOALS.find((x) => x[0] === a.purpose)?.[1] ||
+        "Финансирование бизнеса",
+      answers: a,
+    });
+  }
+  if (!ready) return <div className="page">Загружаем ваш подбор…</div>;
   return (
-    <div className="min-h-screen bg-[#F4F4F6] text-[#171719]">
-      <header className="bg-[#171719] text-white px-7 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3 font-extrabold text-lg">
-          <div className="bg-[#EF3124] w-9 h-9 rounded-lg grid place-items-center text-xl font-black">А</div>
-          <div>
-            Кредитный консультант Альфа-Банка
-            <div className="text-xs text-neutral-400 font-normal">Подбор финансирования без авторизации</div>
+    <div className="page">
+      <div className="eyebrow">ПОДБОР ФИНАНСИРОВАНИЯ</div>
+      <div className="page-heading compact">
+        <h1>{done ? "Варианты для вашей задачи" : "Начнём с ваших планов"}</h1>
+        <p>
+          {done
+            ? "Подбор по условиям продукта. Решение по кредиту — после заявки и проверки."
+            : "Несколько вопросов. Только то, что влияет на выбор."}
+        </p>
+      </div>
+      <div className="survey-layout">
+        <section className="panel survey-panel">
+          <div className="survey-top">
+            <span>
+              <Sparkles size={16} />
+              Кредитный помощник
+            </span>
+            <span className="small muted">
+              {done ? "Подбор завершён" : `Вопрос ${step + 1} из ${qs.length}`}
+            </span>
           </div>
-        </div>
-        <div className="flex gap-3">
-          <button onClick={() => router.push('/my-applications')} className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-sm font-medium">
-            Мои заявки (ЛК)
-          </button>
-          <button onClick={() => router.push('/bank')} className="px-4 py-2 rounded-lg bg-[#EF3124] hover:bg-[#d82317] text-sm font-semibold">
-            Терминал Сотрудника Банка
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto my-8 px-5 grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6 items-start">
-        <section className="bg-white border border-neutral-200 rounded-2xl p-7 shadow-sm">
+          <div className="progress">
+            <span
+              style={{ width: `${done ? 100 : (step / qs.length) * 100}%` }}
+            />
+          </div>
+          <ErrorBox message={error} />
           {!done ? (
             <>
-              <div className="flex justify-between text-xs text-neutral-500 mb-2">
-                <span>Вопрос {stage + 1} из {qs.length}</span>
-                <span>{Math.round((stage / qs.length) * 100)}%</span>
-              </div>
-              <div className="h-1.5 bg-neutral-200 rounded-full mb-6 overflow-hidden">
-                <div className="h-full bg-[#EF3124] transition-all" style={{ width: `${Math.round((stage / qs.length) * 100)}%` }} />
-              </div>
-
-              <h2 className="text-2xl font-bold mb-2">{currentQ.title}</h2>
-              {currentQ.help && <p className="text-neutral-500 text-sm mb-6">{currentQ.help}</p>}
-
-              {currentQ.type === 'number' ? (
-                <div>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {[100000, 500000, 1000000, 3000000, 10000000, 50000000].map((sum) => (
-                      <button
-                        key={sum}
-                        onClick={() => setAmountInput(String(sum))}
-                        className="px-3.5 py-1.5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-sm font-medium"
-                      >
-                        {sum >= 1000000 ? `${sum / 1000000} млн ₽` : `${sum / 1000} тыс. ₽`}
-                      </button>
-                    ))}
+              <h2 key={q.id}>{q.title}</h2>
+              {q.help && <p className="muted question-help">{q.help}</p>}
+              {q.type === "number" ? (
+                <>
+                  <div className="chips">
+                    {[100000, 500000, 1000000, 3000000, 10000000, 50000000].map(
+                      (n) => (
+                        <button
+                          key={n}
+                          className="chip"
+                          onClick={() => setInput(String(n))}
+                        >
+                          {n >= 1000000
+                            ? n / 1000000 + " млн"
+                            : n / 1000 + " тыс."}{" "}
+                          ₽
+                        </button>
+                      ),
+                    )}
                   </div>
-                  <input
-                    type="number"
-                    value={amountInput}
-                    onChange={(e) => setAmountInput(e.target.value)}
-                    className="w-full max-w-md p-3.5 border border-neutral-300 rounded-xl text-lg mb-4"
-                  />
-                  <div>
-                    <button
-                      onClick={() => handleSelect('amount', amountInput)}
-                      className="px-6 py-3 bg-[#EF3124] text-white font-semibold rounded-xl"
-                    >
-                      Продолжить →
-                    </button>
-                  </div>
-                </div>
-              ) : currentQ.type === 'text' ? (
-                <div>
+                  <label>
+                    Сумма, ₽
+                    <input
+                      className="amount-input"
+                      type="number"
+                      min="1"
+                      max="100000000000"
+                      value={input || a.amount || ""}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="3 000 000"
+                    />
+                  </label>
+                  <button
+                    className="button primary"
+                    onClick={() => void advance(input || a.amount || "")}
+                  >
+                    Продолжить <ArrowRight size={17} />
+                  </button>
+                </>
+              ) : q.type === "text" ? (
+                <>
+                  <label className="sr-only" htmlFor="purpose-text">
+                    Ваша бизнес-задача
+                  </label>
                   <textarea
-                    value={otherInput}
-                    onChange={(e) => setOtherInput(e.target.value)}
-                    placeholder="Например: хочу купить станок для цеха"
-                    className="w-full p-3.5 border border-neutral-300 rounded-xl min-h-[110px] mb-4"
+                    id="purpose-text"
+                    maxLength={1500}
+                    rows={4}
+                    value={input || a.other || ""}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Например: хочу купить фрезерный станок для цеха"
                   />
                   <button
-                    onClick={() => handleSelect('other', otherInput)}
-                    className="px-6 py-3 bg-[#EF3124] text-white font-semibold rounded-xl"
+                    disabled={busy}
+                    className="button primary"
+                    onClick={() => void advance(input || a.other || "")}
                   >
-                    Продолжить →
+                    {busy ? "Определяем задачу…" : "Продолжить"}
+                    <ArrowRight size={17} />
                   </button>
-                </div>
+                </>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {currentQ.options?.map(([val, text]) => (
+                <div className="option-grid">
+                  {q.options?.map(([v, label], i) => (
                     <button
-                      key={val}
-                      onClick={() => handleSelect(currentQ.id, val)}
-                      className="text-left p-4 border border-neutral-200 rounded-xl hover:border-[#EF3124] hover:bg-[#fff7f6] flex justify-between items-center transition"
+                      className={`option ${a[q.id] === v ? "selected" : ""}`}
+                      key={v}
+                      onClick={() => void advance(v)}
                     >
-                      <span className="font-medium">{text}</span>
-                      <span className="text-neutral-400 text-lg">›</span>
+                      <span className="option-index">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span>{label}</span>
+                      <ChevronRight size={17} />
                     </button>
                   ))}
                 </div>
               )}
-
-              {stage > 0 && (
-                <div className="mt-6 flex gap-3">
-                  <button onClick={() => setStage((s) => s - 1)} className="px-4 py-2 border rounded-xl text-sm font-semibold">
-                    ← Назад
+              <div className="survey-actions">
+                {step > 0 && (
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setStep(step - 1);
+                      setInput("");
+                      setError("");
+                    }}
+                  >
+                    <ArrowLeft size={16} />
+                    Назад
                   </button>
-                  <button onClick={() => { setAnswer({}); setStage(0); }} className="px-4 py-2 border rounded-xl text-sm font-semibold">
-                    Сбросить
-                  </button>
-                </div>
-              )}
+                )}
+                <button
+                  className="text-button muted"
+                  onClick={() => {
+                    setA({});
+                    setStep(0);
+                    setInput("");
+                  }}
+                >
+                  Начать заново
+                </button>
+              </div>
             </>
           ) : (
-            <div>
-              <h2 className="text-2xl font-bold mb-2">Рекомендованные кредитные продукты</h2>
-              <p className="text-sm text-neutral-500 mb-6">
-                Выберите подходящее предложение для перехода к заполнению заявки в личном кабинете.
-              </p>
-
-              <div className="grid gap-4">
-                {fitted.slice(0, 3).map(({ p, pending, soft }, idx) => (
-                  <div
-                    key={p.id}
-                    className={`p-5 rounded-2xl border ${idx === 0 ? 'border-2 border-[#EF3124]' : 'border-neutral-200'}`}
-                  >
-                    <div className="text-xs text-neutral-500 font-semibold">
-                      {idx === 0 ? 'Лучшее совпадение' : 'Альтернативный вариант'} • Код {p.id}
-                    </div>
-                    <div className="text-xl font-extrabold my-1">{p.name}</div>
-                    <p className="text-sm text-neutral-600">
-                      Лимит до {RUB(p.max)} • {p.term}
-                    </p>
-                    {soft > 0 && (
-                      <p className="text-xs text-amber-700 mt-1">
-                        Способ выдачи отличается от указанного, предложено как альтернатива.
-                      </p>
-                    )}
-                    {pending.length > 0 && (
-                      <p className="text-xs text-neutral-500 mt-1">Уточнить на этапе заявки: {pending.join(' • ')}</p>
-                    )}
-                    <div className="mt-3 p-3 bg-[#FFF5EE] rounded-xl text-xs">
-                      <b>Кросс-продажа и подписка:</b> {p.addons} (-3% к ставке с подпиской «Альфа-Выгодно»)
-                    </div>
-                    <div className="mt-4 flex gap-3 items-center">
-                      <button
-                        onClick={() => handleProceedToApplication(p)}
-                        className="px-5 py-2.5 bg-[#EF3124] hover:bg-[#d82317] text-white font-semibold rounded-xl text-sm"
-                      >
-                        Оформить заявку по продукту →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* Правая панель живого отбора[cite: 24] */}
-        <aside className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm">
-          <h3 className="font-bold text-base">Живой отбор конвейера</h3>
-          <div className="text-3xl font-black mt-2">
-            {fitted.length} <span className="text-sm font-normal text-neutral-400">из {PRODUCTS.length} продуктов</span>
-          </div>
-          <div className="text-xs font-bold uppercase text-neutral-400 mt-5 mb-2">Подходят сейчас</div>
-          {fitted.slice(0, 6).map(({ p }) => (
-            <div key={p.id} className="py-2 border-t border-neutral-100 text-sm flex items-center gap-2">
-              <span className="px-1.5 py-0.5 bg-neutral-100 rounded text-xs font-bold">{p.id}</span>
-              <span className="font-medium">{p.short}</span>
-            </div>
-          ))}
-          {removed.length > 0 && (
             <>
-              <div className="text-xs font-bold uppercase text-neutral-400 mt-5 mb-2">Исключены правилами</div>
-              {removed.slice(0, 4).map(({ p, excluded }) => (
-                <div key={p.id} className="py-2 border-t border-neutral-100 text-xs">
-                  <span className="font-bold">{p.id} · {p.short}:</span>{' '}
-                  <span className="text-neutral-500">{excluded[0]}</span>
-                </div>
-              ))}
+              <div className="results">
+                {remaining.length ? (
+                  remaining.slice(0, 3).map((r, i) => (
+                    <article className="product-result" key={r.product.id}>
+                      <div className="row">
+                        <span className="product-code">{r.product.id}</span>
+                        <span
+                          className={
+                            r.alternatives.length
+                              ? "status"
+                              : "status status-approved"
+                          }
+                        >
+                          {r.alternatives.length
+                            ? "Альтернатива"
+                            : i === 0
+                              ? "Лучшее совпадение"
+                              : "Подходит по параметрам"}
+                        </span>
+                      </div>
+                      <h2>{r.product.short}</h2>
+                      <div className="product-facts">
+                        <span>
+                          Сумма до<b>{money(r.product.max)}</b>
+                        </span>
+                        <span>
+                          Срок<b>{r.product.term}</b>
+                        </span>
+                      </div>
+                      <p className="small">
+                        {r.product.pledge === "owned"
+                          ? "Нужен залог имеющегося имущества"
+                          : r.product.pledge === "purchase"
+                            ? "Залог — покупаемый объект"
+                            : "Без залога имеющегося имущества"}
+                      </p>
+                      {r.alternatives.map((x) => (
+                        <p className="warning-text small" key={x}>
+                          {x}
+                        </p>
+                      ))}
+                      {r.pending.length > 0 && (
+                        <details>
+                          <summary>Нужно уточнить ({r.pending.length})</summary>
+                          <ul>
+                            {r.pending.map((x) => (
+                              <li key={x}>{x}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                      <div className="row product-bottom">
+                        <Link
+                          className="button primary"
+                          onClick={() => apply(r.product.id)}
+                          href="/apply"
+                        >
+                          Оформить заявку
+                          <ArrowRight size={16} />
+                        </Link>
+                        <a
+                          href={r.product.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="small muted"
+                        >
+                          Источник условий ↗
+                        </a>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <SlidersHorizontal size={30} />
+                    <h2>Точных совпадений нет</h2>
+                    <p>
+                      Измените сумму, срок или ограничения по залогу. Условия
+                      программы не позволяют предложить подходящий продукт.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="survey-actions">
+                <button
+                  className="text-button"
+                  onClick={() => setStep(qs.length - 1)}
+                >
+                  <ArrowLeft size={16} />
+                  Изменить ответы
+                </button>
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setA({});
+                    setStep(0);
+                  }}
+                >
+                  Новый подбор
+                </button>
+              </div>
             </>
           )}
+        </section>
+        <aside className="survey-aside">
+          <div className="panel live-panel">
+            <span className="eyebrow">ОТБОР В РЕАЛЬНОМ ВРЕМЕНИ</span>
+            <div className="live-count">
+              {remaining.length}
+              <span>/ {PRODUCTS.length}</span>
+            </div>
+            <p className="muted small">продуктов предварительно подходят</p>
+            <div className="live-list">
+              {remaining.slice(0, 7).map((r) => (
+                <div key={r.product.id}>
+                  <Check size={15} />
+                  <span>{r.product.short}</span>
+                  <small>{r.product.id}</small>
+                </div>
+              ))}
+            </div>
+            <div className="live-note">
+              Числовые ограничения проверяются правилами. Оценка риска и
+              кредитное решение выполняются отдельно.
+            </div>
+          </div>
+          <div className="aside-note">
+            Условия каталога — учебный снимок на 21.10.2026. Индивидуальные
+            ставки и допуски подтверждает банк.
+          </div>
         </aside>
-      </main>
+      </div>
+      {done && excluded.length > 0 && (
+        <section className="panel exclusions">
+          <h2>Почему исключены другие варианты</h2>
+          <p className="muted">Можно проследить каждое правило подбора.</p>
+          {excluded.map((r) => (
+            <details key={r.product.id}>
+              <summary>
+                {r.product.short}
+                <span className="small muted">{r.product.id}</span>
+              </summary>
+              <ul>
+                {r.excluded.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </section>
+      )}
     </div>
+  );
+}
+export default function SurveyPage() {
+  return (
+    <Suspense>
+      <Survey />
+    </Suspense>
   );
 }

@@ -1,0 +1,56 @@
+{
+  "version": "risk-logistic-synthetic-v1",
+  "dataSource": "synthetic",
+  "asOf": "2026-10-22T00:00:00+00:00",
+  "featureNames": [
+    "log_monthly_revenue",
+    "profit_margin",
+    "existing_debt_to_revenue",
+    "requested_to_annual_revenue",
+    "principal_payment_to_surplus",
+    "business_age_years",
+    "overdue_months",
+    "tax_debt_to_revenue",
+    "term_years"
+  ],
+  "mean": [
+    14.51468290104,
+    0.229561102024,
+    0.100767013761,
+    0.21303942188,
+    1.181707553008,
+    6.000951517226,
+    0.2707625,
+    0.041184297406,
+    2.298083333333
+  ],
+  "scale": [
+    0.999674326883,
+    0.168375316925,
+    0.098076277963,
+    0.208756238933,
+    2.262497701722,
+    3.453581313099,
+    0.725049060972,
+    0.097042405575,
+    1.60081374923
+  ],
+  "intercept": -1.837604893542,
+  "coefficients": [
+    -0.080325814574,
+    -0.686488494821,
+    0.279461608654,
+    0.188944674873,
+    1.293815877707,
+    -0.354168627827,
+    0.438232950157,
+    0.093379799163,
+    0.067380569415
+  ],
+  "calibration": {
+    "intercept": -0.044831023937,
+    "slope": 1.014683557013
+  },
+  "reportingThreshold": 0.15,
+  "l2": 0.0001
+}

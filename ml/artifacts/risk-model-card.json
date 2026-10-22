@@ -1,0 +1,215 @@
+{
+  "name": "Synthetic business risk teaching model",
+  "version": "risk-logistic-synthetic-v1",
+  "sha256": "ffeee6c2ae974731bedccafacfceae23dfc386cc1b747125b02dff6359ace99c",
+  "intendedUse": "Offline hackathon demonstration of an end-to-end decision workflow; not a bank approval model",
+  "prohibitedClaims": [
+    "Validated bank PD",
+    "Real client accuracy",
+    "Fairness or regulatory compliance",
+    "Actual FNS/BKI verification"
+  ],
+  "trainingData": "Artificial independently generated business cohorts with noisy Bernoulli outcomes. No personal or banking records.",
+  "license": "CC0-1.0 synthetic dataset; generated model parameters supplied with the project",
+  "outcome": "Synthetic adverse event; no established mapping to real 12-month default",
+  "seeds": {
+    "train": 20261022,
+    "validation": 20261023,
+    "calibration": 20261024,
+    "threshold": 20261025,
+    "test": 20261026
+  },
+  "splitSizes": {
+    "train": 24000,
+    "validation": 4000,
+    "calibration": 4000,
+    "threshold": 4000,
+    "test": 6000
+  },
+  "numpyVersion": "2.3.5",
+  "scaler": "Mean and standard deviation fitted on train only",
+  "selection": "L2 chosen by validation Brier; sigmoid fitted on separate calibration split; reporting threshold chosen on separate threshold split; test untouched until final report",
+  "validationLimit": "All cohorts share the same synthetic generator. Test metrics only measure this simulation, not real-world credit quality. No temporal, external, protected-group or prospective validation.",
+  "inputNotes": {
+    "currentDebtLoad": "Existing monthly debt payments in RUB",
+    "monthlyRevenue": "RUB/month",
+    "monthlyExpenses": "RUB/month excluding existing debt payments",
+    "principal_payment_to_surplus": "Requested principal / term / max(monthly operating surplus, 5% revenue); not the actual annuity payment",
+    "productCode": "Accepted for API compatibility; not a trained feature",
+    "asOf": "Serving date determines business age; golden test date fixed"
+  },
+  "featureNames": [
+    "log_monthly_revenue",
+    "profit_margin",
+    "existing_debt_to_revenue",
+    "requested_to_annual_revenue",
+    "principal_payment_to_surplus",
+    "business_age_years",
+    "overdue_months",
+    "tax_debt_to_revenue",
+    "term_years"
+  ],
+  "metrics": {
+    "validation": {
+      "rows": 4000,
+      "positives": 740,
+      "prevalence": 0.185,
+      "roc_auc": 0.827035317526,
+      "average_precision": 0.637276258123,
+      "brier": 0.103911257813,
+      "log_loss": 0.345077388221,
+      "threshold": 0.15,
+      "confusion_matrix": [
+        [
+          2412,
+          848
+        ],
+        [
+          197,
+          543
+        ]
+      ],
+      "precision": 0.390366642703,
+      "recall": 0.733783783784,
+      "accuracy": 0.73875
+    },
+    "calibration": {
+      "rows": 4000,
+      "positives": 742,
+      "prevalence": 0.1855,
+      "roc_auc": 0.84644184996,
+      "average_precision": 0.669461903778,
+      "brier": 0.099102694979,
+      "log_loss": 0.329513798458,
+      "threshold": 0.15,
+      "confusion_matrix": [
+        [
+          2451,
+          807
+        ],
+        [
+          166,
+          576
+        ]
+      ],
+      "precision": 0.416485900217,
+      "recall": 0.77628032345,
+      "accuracy": 0.75675
+    },
+    "threshold": {
+      "rows": 4000,
+      "positives": 745,
+      "prevalence": 0.18625,
+      "roc_auc": 0.84414725925,
+      "average_precision": 0.668876272447,
+      "brier": 0.099768572302,
+      "log_loss": 0.331260131055,
+      "threshold": 0.15,
+      "confusion_matrix": [
+        [
+          2471,
+          784
+        ],
+        [
+          168,
+          577
+        ]
+      ],
+      "precision": 0.423952975753,
+      "recall": 0.774496644295,
+      "accuracy": 0.762
+    },
+    "test": {
+      "rows": 6000,
+      "positives": 1158,
+      "prevalence": 0.193,
+      "roc_auc": 0.836059015851,
+      "average_precision": 0.661500501959,
+      "brier": 0.104313761344,
+      "log_loss": 0.345897024597,
+      "threshold": 0.15,
+      "confusion_matrix": [
+        [
+          3616,
+          1226
+        ],
+        [
+          266,
+          892
+        ]
+      ],
+      "precision": 0.421152030217,
+      "recall": 0.770293609672,
+      "accuracy": 0.751333333333
+    }
+  },
+  "baselineTest": {
+    "rows": 6000,
+    "positives": 1158,
+    "prevalence": 0.193,
+    "roc_auc": 0.5,
+    "average_precision": 0.193,
+    "brier": 0.155751293403,
+    "log_loss": 0.490544812789,
+    "threshold": 0.15,
+    "confusion_matrix": [
+      [
+        0,
+        4842
+      ],
+      [
+        0,
+        1158
+      ]
+    ],
+    "precision": 0.193,
+    "recall": 1,
+    "accuracy": 0.193
+  },
+  "candidateValidationBrier": [
+    {
+      "l2": 0.0001,
+      "brier": 0.103921959034
+    },
+    {
+      "l2": 0.001,
+      "brier": 0.103952466246
+    },
+    {
+      "l2": 0.01,
+      "brier": 0.104489368434
+    }
+  ],
+  "golden": [
+    {
+      "input": {
+        "monthlyRevenue": 4500000,
+        "monthlyExpenses": 3100000,
+        "currentDebtLoad": 150000,
+        "registrationDate": "2022-03-15T00:00:00+00:00",
+        "requestedAmount": 3000000,
+        "requestedTermMonths": 36,
+        "productCode": "A1",
+        "overdueDays": 0,
+        "taxDebt": 0
+      },
+      "probability": 0.034416325012,
+      "asOf": "2026-10-22T00:00:00+00:00"
+    },
+    {
+      "input": {
+        "monthlyRevenue": 600000,
+        "monthlyExpenses": 590000,
+        "currentDebtLoad": 140000,
+        "registrationDate": "2026-04-01T00:00:00+00:00",
+        "requestedAmount": 4000000,
+        "requestedTermMonths": 12,
+        "productCode": "A1",
+        "overdueDays": 45,
+        "taxDebt": 100000
+      },
+      "probability": 0.99900983163,
+      "asOf": "2026-10-22T00:00:00+00:00"
+    }
+  ]
+}

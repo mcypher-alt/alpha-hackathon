@@ -157,6 +157,8 @@ model ChatMessage {
 
 model LoanApplication {
   id                  String                    @id @default(uuid())
+  version             Int                       @default(0)
+  financialSnapshot   Json?
   companyId           String
   company             Company                   @relation(fields: [companyId], references: [id])
   productId           String
@@ -217,6 +219,7 @@ model ApplicationDocument {
   type          String          // STATEMENT (выписка), BALANCE (бухбаланс), CONTRACT (договор)[cite: 13, 15]
   title         String
   fileUrl       String
+  content       String?         @db.Text
   isSigned      Boolean         @default(false) // Моделирование факта подписания[cite: 11, 15]
   signedAt      DateTime?
   createdAt     DateTime        @default(now())

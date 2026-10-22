@@ -1,42 +1,53 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  ConflictException,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ApplicationStatus, Prisma, UserRole } from '@prisma/client';
+import { ApplicationStatus as S, Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MlMockService } from './ml-mock.service.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
-import { ApplicationsModule } from '../applications/applications.module.js';
+import {
+  BankQueryDto,
+  ClientActionDto,
+  CreateApplicationDto,
+  DocumentDto,
+  IntentDto,
+  InterveneDto,
+} from './dto.js';
+import {
+  assertBank,
+  assertBankTransition,
+  assertClient,
+  assertOwner,
+  assertVersion,
+  nextClientStatus,
+} from './policy.js';
+import { PRODUCT_CATALOG, validateProductRequest } from './catalog.js';
+import { classifyIntent } from '../ml/scorer.js';
+import { randomUUID } from 'node:crypto';
 
-const COMPLETED_STATUSES: ApplicationStatus[] = [
-  ApplicationStatus.APPROVED,
-  ApplicationStatus.REJECTED,
-  ApplicationStatus.DISBURSED,
-];
-
-interface AuthenticatedRequest {
-  user: {
-    id: string;
-    phone: string;
-    role: UserRole;
-  };
+interface AuthRequest {
+  user: { id: string; phone: string; role: UserRole };
 }
-
-interface CreateApplicationBody {
-  inn: string;
-  ogrn?: string;
-  companyName: string;
-  legalForm?: string;
-  okved?: string;
-  okvedTitle?: string;
-  registrationDate?: string;
-  monthlyRevenue: number | string;
-  monthlyExpenses: number | string;
-  currentDebtLoad?: number | string;
-  productCode: string;
-  productName?: string;
-  requestedAmount: number | string;
-  requestedTermMonths: number | string;
-  purpose?: string;
-}
+const INCLUDE = {
+  company: true,
+  product: true,
+  documents: true,
+  statusHistory: { orderBy: { createdAt: 'desc' as const } },
+};
+const COMPLETED: S[] = [S.REJECTED, S.DISBURSED];
 
 @ApiTags('applications')
 @Controller('applications')
@@ -46,276 +57,473 @@ export class ApplicationsController {
     private readonly mlService: MlMockService,
   ) {}
 
-  // 1. Моковая кнопка «Заполнить через Госуслуги / ЕГРЮЛ»
   @Get('gosuslugi-mock')
-  @ApiOperation({ summary: 'Мок получения данных бизнеса из Госуслуг и ЕГРЮЛ' })
-  getGosuslugiData(@Query('preset') preset: 'good' | 'medium' | 'risky' = 'good') {
+  @ApiOperation({
+    summary: 'Локальный синтетический профиль, без доступа к ФНС/ЕСИА',
+  })
+  getGosuslugiData(
+    @Query('preset') preset: 'good' | 'medium' | 'risky' = 'good',
+  ) {
+    if (!['good', 'medium', 'risky'].includes(preset))
+      throw new BadRequestException('Неизвестный профиль');
     return this.mlService.getGosuslugiEgrulProfile(preset);
   }
 
-  // 2. Создание заявки клиентом -> Авто-прогон через ML-сервис
+  @Post('intent')
+  @ApiOperation({ summary: 'Локальная обученная классификация описания цели' })
+  intent(@Body() body: IntentDto) {
+    const p = classifyIntent(body.text);
+    return { ...p, label: p.intent, abstained: p.needsClarification };
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Отправка заявки клиентом и первичный скоринг в ML-сервисе' })
+  @ApiOperation({
+    summary: 'Валидация, обогащение, скоринг и решение по синтетической заявке',
+  })
   async createApplication(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: CreateApplicationBody,
+    @Req() req: AuthRequest,
+    @Body() body: CreateApplicationDto,
   ) {
-    const userId = req.user.id;
-
-    const company = await this.prisma.company.upsert({
+    assertClient(req.user.role);
+    const {
+      product: p,
+      monthsOld,
+      requiresSubscription,
+    } = validateProductRequest(body);
+    const existing = await this.prisma.company.findUnique({
       where: { inn: body.inn },
-      update: {
-        name: body.companyName,
-        legalForm: body.legalForm || 'ООО',
-        okved: body.okved || '47.91',
-        okvedTitle: body.okvedTitle || 'Коммерческая деятельность',
-        monthlyRevenue: Number(body.monthlyRevenue),
-        monthlyExpenses: Number(body.monthlyExpenses),
-        currentDebtLoad: Number(body.currentDebtLoad || 0),
-      },
-      create: {
-        userId,
-        inn: body.inn,
-        ogrn: body.ogrn || '1187746000000',
-        name: body.companyName,
-        legalForm: body.legalForm || 'ООО',
-        okved: body.okved || '47.91',
-        okvedTitle: body.okvedTitle || 'Коммерческая деятельность',
-        registrationDate: new Date(body.registrationDate || '2023-01-15'),
-        monthlyRevenue: Number(body.monthlyRevenue),
-        monthlyExpenses: Number(body.monthlyExpenses),
-        currentDebtLoad: Number(body.currentDebtLoad || 0),
-      },
     });
-
-    const product = await this.prisma.creditProduct.upsert({
-      where: { code: body.productCode },
-      update: {},
-      create: {
-        code: body.productCode,
-        title: body.productName || `Продукт ${body.productCode}`,
-        description: 'Бизнес-финансирование Альфа-Банка',
-        minAmount: 50000,
-        maxAmount: 150000000,
-        minTermMonths: 1,
-        maxTermMonths: 120,
-        baseRate: 21.5,
-        minScoringScore: 650,
+    if (existing) assertOwner(existing.userId, req.user.id);
+    const answers = body.answers ?? {};
+    const chosenPurpose =
+      body.purposeCode ??
+      (answers.purpose === 'other'
+        ? answers.confirmedPurpose
+        : answers.purpose);
+    const uncertainGoal = !chosenPurpose || chosenPurpose === 'other';
+    const uncertainCollateral =
+      (p.pledge === 'owned' && answers.collateral !== 'yes') ||
+      (p.pledge === 'purchase' && answers.asset !== 'yes');
+    const requiresManual =
+      uncertainGoal ||
+      uncertainCollateral ||
+      p.code === 'C1' ||
+      (monthsOld < 9 && p.code !== 'A1') ||
+      requiresSubscription ||
+      (p.code === 'M1' && answers.seller !== 'yes') ||
+      (['R1', 'R2'].includes(p.code) &&
+        !['single', 'line'].includes(answers.refi_type));
+    const ml = this.mlService.evaluateApplication(
+      {
+        ...body,
+        currentDebtLoad: body.currentDebtLoad ?? 0,
+        registrationDate: new Date(body.registrationDate),
       },
-    });
-
-    const mlResult = await this.mlService.evaluateApplication({
-      productCode: body.productCode,
-      requestedAmount: Number(body.requestedAmount),
-      requestedTermMonths: Number(body.requestedTermMonths),
-      monthlyRevenue: Number(body.monthlyRevenue),
-      monthlyExpenses: Number(body.monthlyExpenses),
-      currentDebtLoad: Number(body.currentDebtLoad || 0),
-      registrationDate: company.registrationDate,
-    });
-
-    return this.prisma.loanApplication.create({
-      data: {
-        companyId: company.id,
-        productId: product.id,
-        requestedAmount: Number(body.requestedAmount),
-        requestedTermMonths: Number(body.requestedTermMonths),
-        purpose: body.purpose || 'Пополнение оборотных средств и развитие',
-        status: mlResult.recommendedStatus,
-        scoringScore: mlResult.scoringScore,
-        riskGrade: mlResult.riskGrade,
-        enrichmentData: mlResult.enrichmentData,
-        scoringFactors: mlResult.scoringFactors,
-        approvedAmount: mlResult.approvedAmount,
-        approvedTermMonths: mlResult.approvedTermMonths,
-        approvedRate: mlResult.approvedRate,
-        decisionNote: mlResult.decisionNote,
-        statusHistory: {
-          create: [
-            {
-              fromStatus: ApplicationStatus.DRAFT,
-              toStatus: ApplicationStatus.SUBMITTED,
-              actorRole: UserRole.CLIENT,
-              changedById: userId,
-              comment: 'Заявка сформирована и отправлена клиентом',
+      requiresManual,
+    );
+    const snapshot = JSON.parse(
+      JSON.stringify({
+        ...ml.scoringFactors.applicationSnapshot,
+        answers,
+        consent: true,
+        consentAt: new Date().toISOString(),
+        policyVersion: 'demo-policy-1',
+        modelVersion: ml.scoringFactors.modelVersion,
+        catalogVerifiedAt: p.verifiedAt,
+        requiresSubscription,
+      }),
+    );
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const currentCompany = await tx.company.findUnique({
+            where: { inn: body.inn },
+          });
+          if (currentCompany) assertOwner(currentCompany.userId, req.user.id);
+          const companyData = {
+            name: body.companyName,
+            legalForm: body.legalForm ?? 'ООО',
+            okved: body.okved ?? '47.91',
+            okvedTitle: body.okvedTitle ?? 'Коммерческая деятельность',
+            registrationDate: new Date(body.registrationDate),
+            monthlyRevenue: body.monthlyRevenue,
+            monthlyExpenses: body.monthlyExpenses,
+            currentDebtLoad: body.currentDebtLoad ?? 0,
+            ogrn: body.ogrn ?? '1000000000000',
+          };
+          const company = await tx.company.upsert({
+            where: { inn: body.inn },
+            update: companyData,
+            create: { ...companyData, inn: body.inn, userId: req.user.id },
+          });
+          const product = await tx.creditProduct.upsert({
+            where: { code: p.code },
+            update: {},
+            create: {
+              code: p.code,
+              title: p.title,
+              description: `Учебный каталог от ${p.verifiedAt}`,
+              minAmount: p.min ?? 0,
+              maxAmount: p.max,
+              minTermMonths: p.minTerm,
+              maxTermMonths: p.maxTerm,
+              baseRate: p.baseRate,
+              minScoringScore: 700,
             },
-            {
-              fromStatus: ApplicationStatus.SUBMITTED,
-              toStatus: mlResult.recommendedStatus,
-              actorRole: UserRole.ADMIN,
-              comment: `ML-конвейер (Score: ${mlResult.scoringScore}): ${mlResult.decisionNote}`,
+          });
+          const stages: S[] = [
+            S.SUBMITTED,
+            S.VALIDATING,
+            S.ENRICHING,
+            S.SCORING,
+            ml.recommendedStatus,
+          ];
+          const comments = [
+            'Заявка отправлена клиентом. Согласие на обработку учебных данных получено.',
+            'Проверены обязательные поля и ограничения продукта.',
+            'Локальные симуляторы ФНС / ЕГРЮЛ / БКИ; реальные проверки не выполнялись.',
+            'Риск оценён локальной моделью на синтетических данных.',
+            ml.decisionNote,
+          ];
+          return tx.loanApplication.create({
+            data: {
+              companyId: company.id,
+              productId: product.id,
+              requestedAmount: body.requestedAmount,
+              requestedTermMonths: body.requestedTermMonths,
+              purpose: body.purpose,
+              status: ml.recommendedStatus,
+              scoringScore: ml.scoringScore,
+              riskGrade: ml.riskGrade,
+              enrichmentData: ml.enrichmentData,
+              scoringFactors: JSON.parse(
+                JSON.stringify({
+                  ...ml.scoringFactors,
+                  applicationSnapshot: snapshot,
+                }),
+              ) as Prisma.InputJsonValue,
+              financialSnapshot: snapshot,
+              approvedAmount: ml.approvedAmount,
+              approvedTermMonths: ml.approvedTermMonths,
+              approvedRate: ml.approvedRate,
+              decisionNote: ml.decisionNote,
+              statusHistory: {
+                create: stages.map((status, i) => ({
+                  fromStatus: i ? stages[i - 1] : S.DRAFT,
+                  toStatus: status,
+                  actorRole: i ? UserRole.ADMIN : UserRole.CLIENT,
+                  changedById: i ? undefined : req.user.id,
+                  comment: comments[i],
+                  createdAt: new Date(Date.now() - stages.length + i),
+                })),
+              },
             },
-          ],
+            include: INCLUDE,
+          });
         },
-      },
-      include: { company: true, product: true, statusHistory: true },
-    });
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (e) {
+      return this.dbConflict(e);
+    }
   }
 
-  // 3. Список заявок текущего клиента («Мои заявки»)
   @Get('my')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Получение списка заявок клиента («Мои заявки»)' })
-  async getMyApplications(@Req() req: AuthenticatedRequest) {
+  async getMyApplications(@Req() req: AuthRequest) {
     return this.prisma.loanApplication.findMany({
       where: { company: { userId: req.user.id } },
-      include: {
-        company: true,
-        product: true,
-        statusHistory: { orderBy: { createdAt: 'desc' } },
-      },
+      include: INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // 4. Дашборд сотрудника банка с фильтрацией
   @Get('bank/all')
-  @ApiOperation({ summary: 'Все заявки для дашборда банка с фильтрацией' })
-  async getAllForBank(
-    @Query('completion') completion?: 'ALL' | 'IN_PROGRESS' | 'COMPLETED',
-    @Query('status') status?: ApplicationStatus,
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-    @Query('search') search?: string,
-  ) {
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getAllForBank(@Req() req: AuthRequest, @Query() query: BankQueryDto) {
+    assertBank(req.user.role);
     const where: Prisma.LoanApplicationWhereInput = {};
-
-    if (status) {
-      where.status = status;
-    } else if (completion === 'COMPLETED') {
-      where.status = { in: COMPLETED_STATUSES };
-    } else if (completion === 'IN_PROGRESS') {
-      where.status = { notIn: COMPLETED_STATUSES };
-    }
-
-    if (dateFrom || dateTo) {
+    if (query.status) where.status = query.status;
+    else if (query.completion === 'COMPLETED') where.status = { in: COMPLETED };
+    else if (query.completion === 'IN_PROGRESS')
+      where.status = { notIn: COMPLETED };
+    if (query.dateFrom || query.dateTo) {
       where.createdAt = {};
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
-      if (dateTo) {
-        const end = new Date(dateTo);
-        end.setHours(23, 59, 59, 999);
-        where.createdAt.lte = end;
-      }
+      if (query.dateFrom) where.createdAt.gte = new Date(query.dateFrom);
+      if (query.dateTo)
+        where.createdAt.lte = new Date(
+          query.dateTo.length === 10
+            ? query.dateTo + 'T23:59:59.999Z'
+            : query.dateTo,
+        );
     }
-
-    if (search) {
+    if (query.search)
       where.company = {
         OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { inn: { contains: search } },
+          { name: { contains: query.search, mode: 'insensitive' } },
+          { inn: { contains: query.search } },
         ],
       };
-    }
-
     return this.prisma.loanApplication.findMany({
       where,
       include: {
-        company: { include: { user: true } },
-        product: true,
-        statusHistory: { orderBy: { createdAt: 'desc' } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  // 5. Ручное вмешательство сотрудника банка в любую заявку
-  @Patch('bank/:id/intervene')
-  @ApiOperation({ summary: 'Вмешательство сотрудника банка в заявку (смена статуса и условий)' })
-  async bankIntervene(
-    @Param('id') id: string,
-    @Body()
-    body: {
-      toStatus: ApplicationStatus;
-      approvedAmount?: number;
-      approvedTermMonths?: number;
-      approvedRate?: number;
-      decisionNote: string;
-    },
-  ) {
-    const current = await this.prisma.loanApplication.findUniqueOrThrow({ where: { id } });
-
-    return this.prisma.loanApplication.update({
-      where: { id },
-      data: {
-        status: body.toStatus,
-        approvedAmount: body.approvedAmount ?? current.approvedAmount,
-        approvedTermMonths: body.approvedTermMonths ?? current.approvedTermMonths,
-        approvedRate: body.approvedRate ?? current.approvedRate,
-        decisionNote: body.decisionNote,
-        statusHistory: {
-          create: {
-            fromStatus: current.status,
-            toStatus: body.toStatus,
-            actorRole: UserRole.UNDERWRITER,
-            comment: `[Ручное вмешательство сотрудника банка]: ${body.decisionNote}`,
+        ...INCLUDE,
+        company: {
+          include: {
+            user: {
+              select: { id: true, fullName: true, phone: true, position: true },
+            },
           },
         },
       },
-      include: {
-        company: true,
-        product: true,
-        statusHistory: { orderBy: { createdAt: 'desc' } },
-      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
     });
   }
 
-  // 6. Действия клиента в «Моих заявках» (Принятие контр-оффера / Досыл инфо / Подписание ПЭП)
+  @Patch('bank/:id/intervene')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async bankIntervene(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
+    @Body() body: InterveneDto,
+  ) {
+    assertBank(req.user.role);
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.loanApplication.findUnique({
+        where: { id },
+        include: { product: true },
+      });
+      if (!current) throw new NotFoundException('Заявка не найдена');
+      assertVersion(current, body);
+      assertBankTransition(current.status, body.toStatus);
+      const amount =
+        body.approvedAmount ??
+        Number(current.approvedAmount ?? current.requestedAmount);
+      const term =
+        body.approvedTermMonths ??
+        current.approvedTermMonths ??
+        current.requestedTermMonths;
+      const rate = body.approvedRate ?? current.approvedRate ?? 21.5;
+      if (
+        [S.APPROVED, S.COUNTER_OFFER].includes(
+          body.toStatus as typeof S.APPROVED,
+        )
+      ) {
+        if (
+          amount < Number(current.product.minAmount) ||
+          amount > Number(current.product.maxAmount) ||
+          amount > Number(current.requestedAmount) ||
+          term < current.product.minTermMonths ||
+          term > current.product.maxTermMonths ||
+          rate < 1 ||
+          rate > 60
+        )
+          throw new BadRequestException(
+            'Условия вне лимитов продукта и заявки',
+          );
+      }
+      await this.atomicTransition(
+        tx,
+        current,
+        body.toStatus,
+        req.user,
+        body.decisionNote,
+        {
+          approvedAmount: body.toStatus === S.REJECTED ? 0 : amount,
+          approvedTermMonths: term,
+          approvedRate: body.toStatus === S.REJECTED ? 0 : rate,
+        },
+      );
+      return tx.loanApplication.findUnique({ where: { id }, include: INCLUDE });
+    });
+  }
+
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getApplication(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
+  ) {
+    return this.access(id, req.user);
+  }
+
   @Patch(':id/client-action')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Действие клиента по заявке (согласие с оффером, подписание или ответ банку)' })
   async handleClientAction(
-    @Param('id') id: string,
-    @Req() req: AuthenticatedRequest,
-    @Body()
-    body: {
-      action: 'ACCEPT_OFFER' | 'SIGN_CONTRACT' | 'PROVIDE_INFO';
-      clientComment?: string;
-    },
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
+    @Body() body: ClientActionDto,
   ) {
-    const current = await this.prisma.loanApplication.findUniqueOrThrow({ where: { id } });
-
-    let nextStatus: ApplicationStatus = current.status;
-    let note = current.decisionNote;
-    let historyComment = '';
-
-    if (body.action === 'ACCEPT_OFFER') {
-      nextStatus = ApplicationStatus.SIGNING;
-      note = 'Клиент принял условия предложения. Ожидается подписание договора ПЭП.';
-      historyComment = 'Клиент согласился с предложенными условиями финансирования';
-    } else if (body.action === 'SIGN_CONTRACT') {
-      nextStatus = ApplicationStatus.DISBURSED;
-      note = 'Договор подписан ПЭП. Денежные средства перечислены на расчетный счет клиента.';
-      historyComment = 'Клиент подписал кредитный договор электронной подписью. Средства выданы.';
-    } else if (body.action === 'PROVIDE_INFO') {
-      nextStatus = ApplicationStatus.MANUAL_REVIEW;
-      note = `Клиент предоставил уточнения: "${body.clientComment || 'Документы приложены'}"`;
-      historyComment = `Клиент предоставил дополнительные сведения: ${body.clientComment || ''}`;
-    }
-
-    return this.prisma.loanApplication.update({
-      where: { id },
-      data: {
-        status: nextStatus,
-        decisionNote: note,
-        statusHistory: {
-          create: {
-            fromStatus: current.status,
-            toStatus: nextStatus,
-            actorRole: UserRole.CLIENT,
-            changedById: req.user.id,
-            comment: historyComment,
+    assertClient(req.user.role);
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.loanApplication.findUnique({
+        where: { id },
+        include: { company: true, product: true },
+      });
+      if (!current) throw new NotFoundException('Заявка не найдена');
+      assertOwner(current.company.userId, req.user.id);
+      assertVersion(current, body);
+      const next = nextClientStatus(
+        current.status,
+        body.action,
+        body.clientComment,
+      );
+      const note =
+        body.action === 'SIGN_CONTRACT'
+          ? 'Учебный договор подписан внутри продукта. Выдача средств смоделирована, реального перечисления нет.'
+          : body.action === 'ACCEPT_OFFER'
+            ? 'Клиент принял условия. Ожидается подписание учебного договора.'
+            : `Клиент уточнил сведения: ${body.clientComment}`;
+      await this.atomicTransition(tx, current, next, req.user, note);
+      if (body.action === 'SIGN_CONTRACT')
+        await tx.applicationDocument.create({
+          data: {
+            applicationId: id,
+            type: 'CONTRACT',
+            title: 'Учебный кредитный договор',
+            fileUrl: `/applications/${id}`,
+            isSigned: true,
+            signedAt: new Date(),
+            content: `УЧЕБНЫЙ ДОГОВОР. Не является офертой и юридически значимой подписью.\nКомпания: ${current.company.name}.\nПродукт: ${current.product.title}.\nСумма: ${current.approvedAmount} RUB. Срок: ${current.approvedTermMonths} мес. Демонстрационная ставка: ${current.approvedRate}% годовых.\nСогласие пользователя ${req.user.id} зафиксировано внутри продукта. Выдача средств смоделирована.`,
           },
+        });
+      return tx.loanApplication.findUnique({ where: { id }, include: INCLUDE });
+    });
+  }
+
+  @Post(':id/documents')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async addDocument(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: AuthRequest,
+    @Body() body: DocumentDto,
+  ) {
+    assertClient(req.user.role);
+    return this.prisma.$transaction(async (tx) => {
+      const a = await tx.loanApplication.findUnique({
+        where: { id },
+        include: { company: true },
+      });
+      if (!a) throw new NotFoundException('Заявка не найдена');
+      assertOwner(a.company.userId, req.user.id);
+      if (
+        [S.REJECTED, S.DISBURSED, S.SIGNING].includes(
+          a.status as typeof S.REJECTED,
+        )
+      )
+        throw new ConflictException('Документы больше не принимаются');
+      if (
+        (await tx.applicationDocument.count({
+          where: { applicationId: id },
+        })) >= 20
+      )
+        throw new BadRequestException(
+          'К заявке можно добавить до 20 документов',
+        );
+      await this.atomicTransition(
+        tx,
+        a,
+        a.status,
+        req.user,
+        `Прикреплён учебный документ: ${body.title}`,
+      );
+      const documentId = randomUUID();
+      return tx.applicationDocument.create({
+        data: {
+          ...body,
+          id: documentId,
+          applicationId: id,
+          fileUrl: `/applications/${id}/documents/${documentId}`,
         },
+      });
+    });
+  }
+
+  @Get(':id/documents/:documentId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getDocument(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Req() req: AuthRequest,
+  ) {
+    await this.access(id, req.user);
+    const d = await this.prisma.applicationDocument.findFirst({
+      where: { id: documentId, applicationId: id },
+    });
+    if (!d) throw new NotFoundException('Документ не найден');
+    return d;
+  }
+
+  private async access(id: string, user: AuthRequest['user']) {
+    const a = await this.prisma.loanApplication.findUnique({
+      where: { id },
+      include: INCLUDE,
+    });
+    if (!a) throw new NotFoundException('Заявка не найдена');
+    if (user.role === UserRole.CLIENT) assertOwner(a.company.userId, user.id);
+    else assertBank(user.role);
+    return a;
+  }
+  private async atomicTransition(
+    tx: Prisma.TransactionClient,
+    current: { id: string; status: S; version: number },
+    toStatus: S,
+    user: AuthRequest['user'],
+    note: string,
+    extra: Prisma.LoanApplicationUpdateManyMutationInput = {},
+  ) {
+    const changed = await tx.loanApplication.updateMany({
+      where: {
+        id: current.id,
+        status: current.status,
+        version: current.version,
       },
-      include: {
-        company: true,
-        product: true,
-        statusHistory: { orderBy: { createdAt: 'desc' } },
+      data: {
+        ...extra,
+        status: toStatus,
+        decisionNote: note,
+        version: { increment: 1 },
       },
     });
+    if (changed.count !== 1)
+      throw new ConflictException('Заявка уже изменилась. Обновите данные');
+    await tx.applicationStatusHistory.create({
+      data: {
+        applicationId: current.id,
+        fromStatus: current.status,
+        toStatus,
+        actorRole: user.role,
+        changedById: user.id,
+        comment: note,
+      },
+    });
+  }
+  private dbConflict(e: unknown): never {
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      ['P2002', 'P2034'].includes(e.code)
+    )
+      throw new ConflictException(
+        'Конкурирующее изменение. Обновите данные и повторите отправку',
+      );
+    throw e;
+  }
+}
+
+@ApiTags('products')
+@Controller('products')
+export class ProductsController {
+  @Get() all() {
+    return PRODUCT_CATALOG;
   }
 }

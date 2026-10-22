@@ -1,0 +1,290 @@
+{
+  "info": {
+    "name": "Альфа • Кредитный кабинет — синтетическое демо",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Запустить Compose. Сначала выполнить вход клиента и аналитика, затем создать заявку. Все операции демонстрационные. applicationId заполняется автоматически."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "bankToken",
+      "value": ""
+    },
+    {
+      "key": "applicationId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Готовность",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/ready"
+      }
+    },
+    {
+      "name": "Вход клиента",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone\": \"+79990000001\",\n  \"password\": \"AlfaDemo2026!\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Successful login', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+              "pm.collectionVariables.set('token',pm.response.json().accessToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Вход аналитика",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone\": \"+79990000002\",\n  \"password\": \"AlfaDemo2026!\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Successful login', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+              "pm.collectionVariables.set('bankToken',pm.response.json().accessToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Синтетический профиль",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/applications/gosuslugi-mock?preset=good"
+      }
+    },
+    {
+      "name": "Создать положительную заявку",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/applications",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inn\": \"9900000021\",\n  \"ogrn\": \"1187746009123\",\n  \"companyName\": \"ООО Тестовая мастерская\",\n  \"legalForm\": \"ООО\",\n  \"okved\": \"25.62\",\n  \"registrationDate\": \"2022-03-15\",\n  \"monthlyRevenue\": 12000000,\n  \"monthlyExpenses\": 3000000,\n  \"currentDebtLoad\": 0,\n  \"productCode\": \"K1\",\n  \"requestedAmount\": 3000000,\n  \"requestedTermMonths\": 36,\n  \"purpose\": \"Покупка станка\",\n  \"purposeCode\": \"equipment\",\n  \"answers\": {\n    \"purpose\": \"equipment\",\n    \"collateral\": \"no\"\n  },\n  \"consent\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Created',()=>pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('applicationId',pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Мои заявки",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/applications/my"
+      }
+    },
+    {
+      "name": "Заявка и история",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/applications/{{applicationId}}"
+      }
+    },
+    {
+      "name": "Очередь банка",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bankToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/applications/bank/all?completion=ALL"
+      }
+    },
+    {
+      "name": "Принять условия",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/applications/{{applicationId}}/client-action",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"ACCEPT_OFFER\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Подписать и смоделировать выдачу",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/applications/{{applicationId}}/client-action",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"SIGN_CONTRACT\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Лента производства",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/news?okved=25.62&status=APPROVED"
+      }
+    },
+    {
+      "name": "Лента торговли при дозапросе",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/news?okved=47.91&status=NEED_INFO"
+      }
+    },
+    {
+      "name": "Негативный тест: клиент читает банковскую очередь",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/applications/bank/all"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Forbidden',()=>pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

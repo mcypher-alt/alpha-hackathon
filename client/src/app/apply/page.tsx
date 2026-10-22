@@ -1,244 +1,500 @@
-'use client';
-
-import React, { useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { CheckCircle2, ShieldCheck } from 'lucide-react';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowRight,
+  Building2,
+  Check,
+  FileCheck2,
+  ShieldCheck,
+} from "lucide-react";
+import { api, save, stored, session, money, payment } from "@/lib/api";
+import { PRODUCTS, type Answers } from "@/lib/catalog";
+import { ErrorBox } from "@/components/common";
+type Form = {
+  productCode: string;
+  requestedAmount: string;
+  requestedTermMonths: string;
+  purpose: string;
+  inn: string;
+  ogrn: string;
+  companyName: string;
+  legalForm: string;
+  okved: string;
+  okvedTitle: string;
+  registrationDate: string;
+  monthlyRevenue: string;
+  monthlyExpenses: string;
+  currentDebtLoad: string;
+};
+const empty: Form = {
+  productCode: "K1",
+  requestedAmount: "3000000",
+  requestedTermMonths: "24",
+  purpose: "Пополнение оборотных средств",
+  inn: "",
+  ogrn: "",
+  companyName: "",
+  legalForm: "ООО",
+  okved: "",
+  okvedTitle: "",
+  registrationDate: "",
+  monthlyRevenue: "",
+  monthlyExpenses: "",
+  currentDebtLoad: "0",
+};
+type Draft = {
+  productCode?: string;
+  amount?: string;
+  term?: string;
+  purpose?: string;
+  answers?: Answers;
+};
 export default function ApplyPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [loadingGosuslugi, setLoadingGosuslugi] = useState(false);
-
-  const [form, setForm] = useState({
-    productCode: searchParams.get('productCode') || 'K1',
-    productName: searchParams.get('productName') || 'Бизнес-кредит без залога',
-    requestedAmount: searchParams.get('amount') || '3000000',
-    requestedTermMonths: searchParams.get('term') || '24',
-    purpose: searchParams.get('purpose') || 'Приобретение оборудования и пополнение оборотных средств',
-    inn: '',
-    ogrn: '',
-    companyName: '',
-    legalForm: 'ООО',
-    okved: '',
-    okvedTitle: '',
-    registrationDate: '2022-03-15',
-    monthlyRevenue: '',
-    monthlyExpenses: '',
-    currentDebtLoad: '',
-  });
-
-  // Моковая подгрузка из Госуслуг / ЕГРЮЛ[cite: 10, 13]
-  const handleFillFromGosuslugi = async (preset: 'good' | 'medium' | 'risky' = 'good') => {
-    setLoadingGosuslugi(true);
-    try {
-      const res = await fetch(`${API_URL}/applications/gosuslugi-mock?preset=${preset}`);
-      const data = await res.json();
-      setForm((prev) => ({
-        ...prev,
-        inn: data.inn,
-        ogrn: data.ogrn,
-        companyName: data.name,
-        legalForm: data.legalForm,
-        okved: data.okved,
-        okvedTitle: data.okvedTitle,
-        registrationDate: data.registrationDate,
-        monthlyRevenue: String(data.monthlyRevenue),
-        monthlyExpenses: String(data.monthlyExpenses),
-        currentDebtLoad: String(data.currentDebtLoad),
-      }));
-    } finally {
-      setLoadingGosuslugi(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const token = localStorage.getItem('accessToken');
-    const res = await fetch(`${API_URL}/applications`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(form),
-    });
-
-    if (res.ok) {
-      setIsSubmitted(true);
-    } else {
-      alert('Пожалуйста, войдите в личный кабинет перед отправкой заявки');
-      router.push('/login');
-    }
-  };
-
-  // Экран успешной отправки с зеленой галочкой
-  if (isSubmitted) {
-    return (
-      <div className="min-h-screen bg-[#F4F4F6] flex items-center justify-center p-6">
-        <div className="bg-white max-w-lg w-full rounded-3xl p-8 text-center shadow-sm border border-neutral-200">
-          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-5">
-            <CheckCircle2 className="w-12 h-12" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-[#0B1F35] mb-2">
-            Ваша заявка успешно отправлена
-          </h1>
-          <p className="text-neutral-500 text-sm mb-6">
-            Данные переданы в кредитный конвейер и ML-скоринг Альфа-Банка. Вы можете отслеживать этапы рассмотрения и решение банка в реальном времени.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => router.push('/my-applications')}
-              className="px-6 py-3 bg-[#EF3124] hover:bg-[#d82317] text-white font-semibold rounded-xl"
-            >
-              Перейти в «Мои заявки» →
-            </button>
-            <button
-              onClick={() => router.push('/survey')}
-              className="px-6 py-3 border border-neutral-300 font-semibold rounded-xl"
-            >
-              Вернуться к калькулятору
-            </button>
-          </div>
-        </div>
-      </div>
+  const [form, setForm] = useState<Form>(empty),
+    [answers, setAnswers] = useState<Answers>({}),
+    [consent, setConsent] = useState(false),
+    [busy, setBusy] = useState(""),
+    [error, setError] = useState(""),
+    [ready, setReady] = useState(false),
+    [showComparison, setShowComparison] = useState(false);
+  useEffect(() => {
+    const d = stored<Draft>("alfa.draft", {}),
+      f = stored<Form | null>("alfa.apply", null);
+    const product = PRODUCTS.find((p) => p.id === d.productCode);
+    setForm(
+      f && f.productCode === (d.productCode || "K1")
+        ? f
+        : {
+            ...empty,
+            productCode: d.productCode || "K1",
+            requestedAmount: d.amount || "3000000",
+            requestedTermMonths:
+              d.term && Number(d.term) > 0
+                ? d.term
+                : product?.maxm
+                  ? String(Math.min(24, product.maxm))
+                  : "24",
+            purpose: d.purpose || empty.purpose,
+          },
     );
+    setAnswers(d.answers || {});
+    setReady(true);
+  }, []);
+  useEffect(() => {
+    if (ready) save("alfa.apply", form);
+  }, [form, ready]);
+  const product =
+    PRODUCTS.find((p) => p.id === form.productCode) || PRODUCTS[0];
+  const update = (key: keyof Form, value: string) =>
+    setForm((p) => ({ ...p, [key]: value }));
+  async function profile(preset: string) {
+    setBusy(preset);
+    setError("");
+    try {
+      const p = await api<{
+        inn: string;
+        ogrn: string;
+        name: string;
+        legalForm: string;
+        okved: string;
+        okvedTitle: string;
+        registrationDate: string;
+        monthlyRevenue: number;
+        monthlyExpenses: number;
+        currentDebtLoad: number;
+      }>(`/applications/gosuslugi-mock?preset=${preset}`);
+      setForm((f) => ({
+        ...f,
+        inn: p.inn,
+        ogrn: p.ogrn,
+        companyName: p.name,
+        legalForm: p.legalForm,
+        okved: p.okved,
+        okvedTitle: p.okvedTitle,
+        registrationDate: p.registrationDate.slice(0, 10),
+        monthlyRevenue: String(p.monthlyRevenue),
+        monthlyExpenses: String(p.monthlyExpenses),
+        currentDebtLoad: String(p.currentDebtLoad),
+      }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
   }
-
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!session()) {
+      router.push("/login?redirect=/apply");
+      return;
+    }
+    if (session()?.user.role !== "CLIENT") {
+      setError(
+        "Подать заявку можно из кабинета предпринимателя. Войдите под соответствующей учётной записью.",
+      );
+      return;
+    }
+    setBusy("submit");
+    try {
+      const result = await api<{ id: string }>("/applications", {
+        method: "POST",
+        body: JSON.stringify({
+          ...form,
+          productName: product.name,
+          requestedAmount: Number(form.requestedAmount),
+          requestedTermMonths: Number(form.requestedTermMonths),
+          monthlyRevenue: Number(form.monthlyRevenue),
+          monthlyExpenses: Number(form.monthlyExpenses),
+          currentDebtLoad: Number(form.currentDebtLoad),
+          consent,
+          answers,
+          purposeCode:
+            answers.purpose === "other"
+              ? answers.confirmedPurpose
+              : answers.purpose,
+        }),
+      });
+      localStorage.removeItem("alfa.apply");
+      router.push(`/my-applications?id=${result.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+  const amount = Number(form.requestedAmount),
+    term = Number(form.requestedTermMonths),
+    plain = payment(amount, 21.5, term),
+    sub = payment(amount, 18.5, term),
+    fee = 4900;
   return (
-    <div className="min-h-screen bg-[#F4F4F6] py-10 px-5">
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm">
-        <div className="flex items-center justify-between border-b pb-5 mb-6">
+    <div className="page">
+      <div className="eyebrow">СЛЕДУЮЩИЙ ШАГ</div>
+      <div className="page-heading compact">
+        <h1>Заявка на финансирование</h1>
+        <p>
+          Проверьте условия и расскажите о бизнесе. Повторно вводить данные не
+          потребуется.
+        </p>
+      </div>
+      <ErrorBox message={error} />
+      <form onSubmit={submit}>
+        <div className="apply-layout">
           <div>
-            <span className="text-xs font-bold uppercase px-2.5 py-1 bg-red-50 text-[#EF3124] rounded-full">
-              Продукт {form.productCode}
-            </span>
-            <h1 className="text-2xl font-extrabold mt-2">{form.productName}</h1>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-neutral-400">Сумма финансирования</div>
-            <div className="text-xl font-black">{Number(form.requestedAmount).toLocaleString('ru-RU')} ₽</div>
-          </div>
-        </div>
-
-        {/* Блок автозаполнения через Госуслуги / ЕГРЮЛ[cite: 4, 10, 13] */}
-        <div className="bg-[#F2F6FF] border border-blue-200 rounded-2xl p-5 mb-7">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="w-8 h-8 text-blue-600 shrink-0" />
-              <div>
-                <div className="font-bold text-sm text-[#0B1F35]">
-                  Быстрое предзаполнение через Госуслуги и ФНС ЕГРЮЛ
-                </div>
-                <div className="text-xs text-neutral-600">
-                  Подтянем ИНН, ОГРН, ОКВЭД и бухгалтерскую отчетность без ручного ввода
+            <section className="panel form-section">
+              <div className="section-heading">
+                <h2>
+                  <span className="section-number">01</span>Параметры кредита
+                </h2>
+                <Link href="/survey" className="small">
+                  Изменить подбор ↗
+                </Link>
+              </div>
+              <div className="chosen-product">
+                <span className="product-code">{product.id}</span>
+                <div>
+                  <h3>{product.name}</h3>
+                  <p>
+                    {product.term} ·{" "}
+                    {product.pledge === "none"
+                      ? "Без залога имущества"
+                      : product.pledge === "owned"
+                        ? "Под залог имущества"
+                        : "Залог покупаемого объекта"}
+                  </p>
                 </div>
               </div>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => handleFillFromGosuslugi('good')}
-                disabled={loadingGosuslugi}
-                className="px-4 py-2 bg-[#0D4CD3] hover:bg-blue-700 text-white text-xs font-semibold rounded-xl"
-              >
-                Госуслуги / ЕГРЮЛ (Надежный бизнес)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleFillFromGosuslugi('medium')}
-                className="px-3 py-2 bg-white border border-blue-300 text-blue-800 text-xs font-semibold rounded-xl"
-              >
-                Пресет: Контр-оффер
-              </button>
-              <button
-                type="button"
-                onClick={() => handleFillFromGosuslugi('risky')}
-                className="px-3 py-2 bg-white border border-red-200 text-red-700 text-xs font-semibold rounded-xl"
-              >
-                Пресет: Высокий риск
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-neutral-600">ИНН компании / ИП</label>
+              <div className="form-grid">
+                <label>
+                  Сумма финансирования, ₽
+                  <input
+                    required
+                    type="number"
+                    min={product.min ?? 1}
+                    max={product.max}
+                    value={form.requestedAmount}
+                    onChange={(e) => update("requestedAmount", e.target.value)}
+                  />
+                </label>
+                <label>
+                  {product.kind === "tranche" || product.kind === "overdraft"
+                    ? "Возврат каждого транша, мес."
+                    : "Срок возврата, мес."}
+                  <input
+                    required
+                    type="number"
+                    min={product.minm ?? 1}
+                    max={product.maxm ?? 180}
+                    value={form.requestedTermMonths}
+                    onChange={(e) =>
+                      update("requestedTermMonths", e.target.value)
+                    }
+                  />
+                </label>
+                <label className="span-2">
+                  Цель финансирования
+                  <textarea
+                    required
+                    rows={2}
+                    maxLength={1000}
+                    value={form.purpose}
+                    onChange={(e) => update("purpose", e.target.value)}
+                  />
+                </label>
+              </div>
+            </section>
+            <section className="panel form-section">
+              <div className="section-heading">
+                <h2>
+                  <span className="section-number">02</span>Данные бизнеса
+                </h2>
+                <Building2 size={21} />
+              </div>
+              <div className="profile-demo">
+                <b>Заполнить учебным профилем</b>
+                <p>Локальный симулятор ЕГРЮЛ и финансовых данных.</p>
+                <div className="chips">
+                  {[
+                    ["good", "Устойчивый бизнес"],
+                    ["medium", "Молодой бизнес"],
+                    ["risky", "Высокая нагрузка"],
+                  ].map(([key, label]) => (
+                    <button
+                      type="button"
+                      key={key}
+                      disabled={!!busy}
+                      className="chip"
+                      onClick={() => void profile(key)}
+                    >
+                      {busy === key ? "Загружаем…" : label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="form-grid">
+                <label className="span-2">
+                  Название компании / ФИО ИП
+                  <input
+                    required
+                    maxLength={200}
+                    value={form.companyName}
+                    onChange={(e) => update("companyName", e.target.value)}
+                  />
+                </label>
+                <label>
+                  ИНН
+                  <input
+                    required
+                    pattern="[0-9]{10}|[0-9]{12}"
+                    inputMode="numeric"
+                    title="ИНН из 10 или 12 цифр"
+                    value={form.inn}
+                    onChange={(e) => update("inn", e.target.value)}
+                  />
+                </label>
+                <label>
+                  ОГРН / ОГРНИП
+                  <input
+                    required
+                    pattern="[0-9]{13}|[0-9]{15}"
+                    title="13 или 15 цифр"
+                    value={form.ogrn}
+                    onChange={(e) => update("ogrn", e.target.value)}
+                  />
+                </label>
+                <label>
+                  Правовая форма
+                  <select
+                    value={form.legalForm}
+                    onChange={(e) => update("legalForm", e.target.value)}
+                  >
+                    <option>ООО</option>
+                    <option>ИП</option>
+                  </select>
+                </label>
+                <label>
+                  Дата регистрации
+                  <input
+                    required
+                    type="date"
+                    max={new Date().toISOString().slice(0, 10)}
+                    value={form.registrationDate}
+                    onChange={(e) => update("registrationDate", e.target.value)}
+                  />
+                </label>
+                <label>
+                  Основной ОКВЭД
+                  <input
+                    required
+                    placeholder="47.91"
+                    value={form.okved}
+                    onChange={(e) => update("okved", e.target.value)}
+                  />
+                </label>
+                <label>
+                  Описание деятельности
+                  <input
+                    required
+                    maxLength={200}
+                    value={form.okvedTitle}
+                    onChange={(e) => update("okvedTitle", e.target.value)}
+                  />
+                </label>
+              </div>
+            </section>
+            <section className="panel form-section">
+              <h2>
+                <span className="section-number">03</span>Финансовые показатели
+              </h2>
+              <p className="muted">
+                Средние значения за месяц. Платежи по действующим кредитам
+                укажите отдельно от расходов.
+              </p>
+              <div className="form-grid">
+                <label>
+                  Выручка в месяц, ₽
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="100000000000"
+                    value={form.monthlyRevenue}
+                    onChange={(e) => update("monthlyRevenue", e.target.value)}
+                  />
+                </label>
+                <label>
+                  Расходы в месяц, ₽
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    max="100000000000"
+                    value={form.monthlyExpenses}
+                    onChange={(e) => update("monthlyExpenses", e.target.value)}
+                  />
+                </label>
+                <label>
+                  Текущие платежи по кредитам, ₽
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    max="100000000000"
+                    value={form.currentDebtLoad}
+                    onChange={(e) => update("currentDebtLoad", e.target.value)}
+                  />
+                </label>
+                <div className="financial-hint">
+                  <span>До кредитных платежей остаётся</span>
+                  <strong>
+                    {money(
+                      Number(form.monthlyRevenue) -
+                        Number(form.monthlyExpenses),
+                    )}
+                  </strong>
+                </div>
+              </div>
+            </section>
+            <label className="consent">
               <input
+                type="checkbox"
                 required
-                value={form.inn}
-                onChange={(e) => setForm({ ...form, inn: e.target.value })}
-                placeholder="7714892011"
-                className="w-full mt-1 p-3 border rounded-xl"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
               />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-neutral-600">Наименование организации</label>
-              <input
-                required
-                value={form.companyName}
-                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-                placeholder="ООО «ТехноПром»"
-                className="w-full mt-1 p-3 border rounded-xl"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-neutral-600">Код ОКВЭД</label>
-              <input
-                required
-                value={form.okved}
-                onChange={(e) => setForm({ ...form, okved: e.target.value })}
-                placeholder="25.62"
-                className="w-full mt-1 p-3 border rounded-xl"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-neutral-600">Дата регистрации бизнеса</label>
-              <input
-                type="date"
-                required
-                value={form.registrationDate}
-                onChange={(e) => setForm({ ...form, registrationDate: e.target.value })}
-                className="w-full mt-1 p-3 border rounded-xl"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-neutral-600">Среднемесячная выручка (₽)</label>
-              <input
-                type="number"
-                required
-                value={form.monthlyRevenue}
-                onChange={(e) => setForm({ ...form, monthlyRevenue: e.target.value })}
-                className="w-full mt-1 p-3 border rounded-xl"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-neutral-600">Среднемесячные расходы (₽)</label>
-              <input
-                type="number"
-                required
-                value={form.monthlyExpenses}
-                onChange={(e) => setForm({ ...form, monthlyExpenses: e.target.value })}
-                className="w-full mt-1 p-3 border rounded-xl"
-              />
-            </div>
-          </div>
-
-          <div className="pt-4">
+              <span>
+                Подтверждаю, что использую синтетические данные, и согласен на
+                их обработку в учебном прототипе.
+              </span>
+            </label>
             <button
+              disabled={!!busy}
               type="submit"
-              className="w-full py-4 bg-[#EF3124] hover:bg-[#d82317] text-white font-bold rounded-xl text-base"
+              className="button primary submit-application"
             >
-              Отправить заявку в банк
+              {busy === "submit"
+                ? "Проверяем и сохраняем…"
+                : "Отправить заявку"}
+              <ArrowRight size={18} />
             </button>
           </div>
-        </form>
-      </div>
+          <aside className="apply-aside">
+            <div className="panel">
+              <FileCheck2 size={26} />
+              <h3>Все этапы в одном месте</h3>
+              <div className="check-list">
+                <p>
+                  <Check size={15} />
+                  Проверка полноты данных
+                </p>
+                <p>
+                  <Check size={15} />
+                  Моделирование ФНС и БКИ
+                </p>
+                <p>
+                  <Check size={15} />
+                  Оценка риска и решение
+                </p>
+                <p>
+                  <Check size={15} />
+                  История и документы
+                </p>
+              </div>
+              <div className="live-note">
+                Подбор не означает одобрение. После отправки покажем результат и
+                следующий шаг.
+              </div>
+            </div>
+            <div className="panel comparison">
+              <ShieldCheck size={23} />
+              <h3>Сравнить полные расходы</h3>
+              <p className="small muted">
+                Пример для разового аннуитетного кредита. Ставки и плата
+                учебные, это не условия выбранного продукта.
+              </p>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setShowComparison(!showComparison)}
+              >
+                {showComparison ? "Скрыть расчёт" : "Открыть расчёт"}
+                <ArrowRight size={15} />
+              </button>
+              {showComparison && amount > 0 && term > 0 && (
+                <>
+                  <div className="comparison-row">
+                    <span>Без услуги · 21,5%</span>
+                    <b>{money(plain)}/мес.</b>
+                    <span>Всего выплат</span>
+                    <b>{money(plain * term)}</b>
+                  </div>
+                  <div className="comparison-row">
+                    <span>С услугой · 18,5%</span>
+                    <b>{money(sub)}/мес.</b>
+                    <span>Плата за услугу</span>
+                    <b>{money(fee)}/мес.</b>
+                    <span>Всего, включая услугу</span>
+                    <b>{money((sub + fee) * term)}</b>
+                  </div>
+                  <p className="small">
+                    {plain * term > (sub + fee) * term
+                      ? `В этом примере разница ${money((plain - sub - fee) * term)} в пользу услуги.`
+                      : `В этом примере услуга увеличивает расходы на ${money((sub + fee - plain) * term)}.`}
+                  </p>
+                  <p className="small muted">
+                    Не подключает услугу. Индивидуальный график, комиссии,
+                    страхование и эффективная ставка требуют отдельного расчёта.
+                  </p>
+                </>
+              )}
+            </div>
+          </aside>
+        </div>
+      </form>
     </div>
   );
 }
