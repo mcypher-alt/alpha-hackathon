@@ -1,0 +1,69 @@
+THIRD PARTY NOTICES — ALFA CREDIT HACKATHON MVP
+
+Project source: team hackathon submission; see repository history for authorship.
+This notice inventories runtime components and modeled integrations. Exact npm
+versions and transitive dependency trees are recorded in client/package-lock.json
+and server/package-lock.json. Upstream license texts remain in installed packages.
+
+Core runtime
+- Node.js — Node.js contributors — MIT and bundled third-party notices.
+  https://nodejs.org/
+- Next.js — Vercel — MIT. https://github.com/vercel/next.js
+- React / react-dom — Meta and contributors — MIT. https://react.dev/
+- NestJS — NestJS contributors — MIT. https://github.com/nestjs/nest
+- Prisma / @prisma/client — Prisma contributors — Apache-2.0.
+  https://github.com/prisma/prisma
+- PostgreSQL — PostgreSQL Global Development Group — PostgreSQL License.
+  https://www.postgresql.org/about/licence/
+
+UI and supporting packages (where retained in package-lock.json)
+- Alfa Interface Sans web fonts (regular/medium/bold) — official Core Components
+  repository, commit e6e25f66d4eace168693d33f4636b3bffd23ef1b. The upstream MIT
+  notice is retained in client/public/fonts/LICENSE-core-ds.txt. Source URLs and
+  SHA-256 are in client/public/fonts/SOURCE.md; no separate font license was
+  identified in the inspected upstream tree.
+  https://github.com/core-ds/core-components
+- Tailwind CSS — Tailwind Labs — MIT.
+- Lucide — Lucide contributors — ISC.
+- Ant Design / @ant-design/cssinjs — Ant Group contributors — MIT.
+- Base UI — MUI contributors — MIT.
+- shadcn, class-variance-authority, tw-animate-css — upstream authors — MIT.
+- bcrypt — bcrypt contributors — MIT.
+- class-validator / class-transformer — Typestack contributors — MIT.
+- Passport / passport-jwt — upstream authors — MIT.
+- jsonwebtoken and Nest JWT integration — upstream authors — MIT.
+- RxJS — ReactiveX contributors — Apache-2.0.
+- Swagger UI / swagger-ui-express / Nest Swagger — upstream authors — Apache-2.0 / MIT.
+- TypeScript — Microsoft — Apache-2.0.
+- Vite / Vitest — contributors — MIT.
+- ESLint — OpenJS Foundation — MIT.
+
+Model training (not required at runtime)
+- Python — Python Software Foundation — PSF License.
+- NumPy — NumPy developers — BSD-3-Clause.
+- Risk and intent model weights — trained by this submission from generated
+  synthetic examples. Training code, feature definitions, split seeds, model
+  metadata, evaluation reports and limitations are included in ml/.
+- No external customer datasets, pretrained language model, paid model API,
+  proprietary model weights or bank internal data are used by the runnable MVP.
+- Synthetic holdout metrics do not establish real-world credit performance.
+
+Simulated integrations
+- FNS / EGRUL / EGRIP, tax and credit bureau checks are local synthetic fixtures.
+- Identity is local password authentication, not ESIA/Gosuslugi authentication.
+- Signing and disbursement are state transitions plus demonstration documents,
+  not legally valid signatures, real accounts or payment operations.
+- News feed is an editorial demonstration corpus, not a live verified news wire.
+- Product catalogue follows the supplied project specification dated 2026-10-21.
+  Public source URLs are preserved for traceability. Demonstration interest rates,
+  fees and decision thresholds are not represented as actual bank offers.
+
+Branding
+Alfa-Bank names and brand references identify the hackathon case and requested
+visual direction. This prototype is not an official Alfa-Bank banking service.
+No affiliation, certification or bank approval is claimed.
+
+Development-only tooling
+Codex was used to assist development and review. Such tooling is not a required
+component of the submitted runtime. Reading supplied PDFs used pypdf/Poppler;
+these tools are not required to run the credit cabinet.

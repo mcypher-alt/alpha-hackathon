@@ -1,12 +1,12 @@
-import type { Metadata } from 'next';
-import './globals.css';
-import { AntdAlfaProvider } from '../components/ui/providers/AntdAlfaProvider';
-
+import type { Metadata } from "next";
+import "./globals.css";
+import "./landing.css";
+import { Shell } from "@/components/shell";
 export const metadata: Metadata = {
-  title: 'Умный кредитный кабинет | Альфа-Банк',
-  description: 'Кредитный конвейер для малого и микробизнеса',
+  title: "Кредитный кабинет | Альфа • Бизнес",
+  description:
+    "От задачи вашего бизнеса до решения по кредиту. Учебный прототип.",
 };
-
 export default function RootLayout({
   children,
 }: {
@@ -14,8 +14,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru">
-      <body className="min-h-screen bg-[#F2F3F5] text-[#0B1F35] antialiased">
-        <AntdAlfaProvider>{children}</AntdAlfaProvider>
+      <body>
+        <Shell>{children}</Shell>
       </body>
     </html>
   );

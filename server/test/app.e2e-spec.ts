@@ -1,29 +1,16 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
-import { App } from 'supertest/types.js';
-import { AppModule } from './../src/app.module.js';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
-
-  beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    await app.init();
-  });
-
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
-  });
-
-  afterEach(async () => {
-    await app.close();
-  });
+describe('Running submission API (start Docker Compose first)', () => {
+  it('preserves the credit path, roles, ownership and concurrent transitions', () => {
+    const script = fileURLToPath(
+      new URL('../../scripts/smoke.mjs', import.meta.url),
+    );
+    const output = execFileSync(process.execPath, [script], {
+      encoding: 'utf8',
+      env: process.env,
+      timeout: 60_000,
+    });
+    expect(JSON.parse(output).result).toBe('PASS');
+  }, 75_000);
 });

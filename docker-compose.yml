@@ -1,44 +1,75 @@
-version: '3.8'
+name: ${COMPOSE_PROJECT_NAME:-alfa-credit}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   postgres:
-    image: postgres:16-alpine
-    container_name: alfa_postgres
+    image: postgres:16.6-alpine
     environment:
-      POSTGRES_USER: alfa_user
-      POSTGRES_PASSWORD: alfa_password
-      POSTGRES_DB: alfa_credit_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-alfa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-alfa_local_demo_password}
+      POSTGRES_DB: ${POSTGRES_DB:-alfa_credit}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    logging: *logging
 
   backend:
     build:
       context: ./server
-      dockerfile: Dockerfile
-    container_name: alfa_backend
-    restart: always
     environment:
-      DATABASE_URL: "postgresql://alfa_user:alfa_password@postgres:5432/alfa_credit_db?schema=public"
-      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-alfa}:${POSTGRES_PASSWORD:-alfa_local_demo_password}@postgres:5432/${POSTGRES_DB:-alfa_credit}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-local-demo-change-this-32-character-secret}
+      PORT: "4000"
+      CORS_ORIGIN: http://localhost:${APP_PORT:-3000}
+      SEED_DEMO: ${SEED_DEMO:-true}
     ports:
-      - "4000:4000"
+      - "127.0.0.1:${API_PORT:-4000}:4000"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 12
+    restart: unless-stopped
+    logging: *logging
 
   frontend:
     build:
       context: ./client
-      dockerfile: Dockerfile
-    container_name: alfa_frontend
-    restart: always
+      args:
+        API_INTERNAL_URL: http://backend:4000
     environment:
-      NEXT_PUBLIC_API_URL: "http://localhost:4000"
+      NODE_ENV: production
+      API_INTERNAL_URL: http://backend:4000
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 12
+    restart: unless-stopped
+    logging: *logging
 
 volumes:
   postgres_data:
