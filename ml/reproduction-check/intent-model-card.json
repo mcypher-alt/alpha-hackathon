@@ -1,0 +1,187 @@
+{
+  "version": "purpose-word-char-nb-v1",
+  "sha256": "38fa5c684363406d6461175e3757f8424b627a9ae3f96faf32b1f0280a60edaa",
+  "corpusSha256": "4688eb924c4a379dd947a61c680490f780fa125ca01022b8f7aad5965894425d",
+  "hashEncoding": "SHA256 of compact key-sorted UTF-8 JSON; semantic corpus hash is independent of Windows line endings",
+  "algorithm": "Multinomial naive Bayes on word unigrams and weighted character trigrams; Laplace smoothing; validation-selected temperature and abstention threshold",
+  "license": "CC0-1.0 authored corpus and generated parameters",
+  "trainRows": 98,
+  "vocabularySize": 577,
+  "labels": [
+    "operations",
+    "gap",
+    "equipment",
+    "auto",
+    "property",
+    "refi",
+    "market",
+    "other"
+  ],
+  "dataSource": "Small manually authored Russian examples, not production bank requests",
+  "limitation": "28 known-purpose test examples and seven out-of-domain examples cannot establish general Russian-language accuracy. Ambiguous requests must be clarified. No LLM or remote API is used.",
+  "selection": "Vocabulary/likelihoods fit on train only; temperature and confidence threshold on validation only; test used for reporting only",
+  "metrics": {
+    "validation": {
+      "rows": 28,
+      "correct": 16,
+      "accuracyIncludingAbstentions": 0.571428571429,
+      "coverage": 0.571428571429,
+      "accuracyWhenAccepted": 1,
+      "unknownRows": 7,
+      "unknownAbstained": 7,
+      "confusion": {
+        "operations": {
+          "operations": 1,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 0,
+          "property": 0,
+          "refi": 0,
+          "market": 0,
+          "other": 3
+        },
+        "gap": {
+          "operations": 0,
+          "gap": 2,
+          "equipment": 0,
+          "auto": 0,
+          "property": 0,
+          "refi": 0,
+          "market": 0,
+          "other": 2
+        },
+        "equipment": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 2,
+          "auto": 0,
+          "property": 0,
+          "refi": 0,
+          "market": 0,
+          "other": 2
+        },
+        "auto": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 3,
+          "property": 0,
+          "refi": 0,
+          "market": 0,
+          "other": 1
+        },
+        "property": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 0,
+          "property": 3,
+          "refi": 0,
+          "market": 0,
+          "other": 1
+        },
+        "refi": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 0,
+          "property": 0,
+          "refi": 1,
+          "market": 0,
+          "other": 3
+        },
+        "market": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 0,
+          "property": 0,
+          "refi": 0,
+          "market": 4,
+          "other": 0
+        }
+      }
+    },
+    "test": {
+      "rows": 28,
+      "correct": 18,
+      "accuracyIncludingAbstentions": 0.642857142857,
+      "coverage": 0.75,
+      "accuracyWhenAccepted": 0.857142857143,
+      "unknownRows": 7,
+      "unknownAbstained": 7,
+      "confusion": {
+        "operations": {
+          "operations": 2,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 1,
+          "property": 0,
+          "refi": 0,
+          "market": 0,
+          "other": 1
+        },
+        "gap": {
+          "operations": 0,
+          "gap": 2,
+          "equipment": 0,
+          "auto": 0,
+          "property": 0,
+          "refi": 0,
+          "market": 0,
+          "other": 2
+        },
+        "equipment": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 2,
+          "auto": 0,
+          "property": 2,
+          "refi": 0,
+          "market": 0,
+          "other": 0
+        },
+        "auto": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 3,
+          "property": 0,
+          "refi": 0,
+          "market": 0,
+          "other": 1
+        },
+        "property": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 0,
+          "property": 3,
+          "refi": 0,
+          "market": 0,
+          "other": 1
+        },
+        "refi": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 0,
+          "property": 0,
+          "refi": 4,
+          "market": 0,
+          "other": 0
+        },
+        "market": {
+          "operations": 0,
+          "gap": 0,
+          "equipment": 0,
+          "auto": 0,
+          "property": 0,
+          "refi": 0,
+          "market": 2,
+          "other": 2
+        }
+      }
+    }
+  }
+}
