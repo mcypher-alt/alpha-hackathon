@@ -20,6 +20,7 @@ async function bootstrap() {
   });
   app.enableShutdownHooks();
   app.useGlobalFilters(new ApiErrorFilter());
+  app.setGlobalPrefix('api');
 
   app.enableCors({
     origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
