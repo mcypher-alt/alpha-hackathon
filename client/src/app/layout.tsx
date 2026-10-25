@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./landing.css";
 import { Shell } from "@/components/shell";
 export const metadata: Metadata = {
   title: "Кредитный кабинет | Альфа • Бизнес",

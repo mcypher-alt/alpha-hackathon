@@ -1,183 +1,218 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Sparkles,
-  ScanLine,
-  ShieldCheck,
-  ChevronRight,
   Building2,
-  ShoppingBag,
+  CircleDollarSign,
+  Layers3,
+  Laptop,
+  Package,
   Truck,
-  TrendingUp,
+  Warehouse,
 } from "lucide-react";
+
+const facts = [
+  {
+    icon: Building2,
+    title: "Для ИП и ООО",
+    text: "Подбор под задачу и показатели бизнеса.",
+  },
+  {
+    icon: Warehouse,
+    title: "С залогом и без",
+    text: "Собственное имущество или приобретаемый объект.",
+  },
+  {
+    icon: Layers3,
+    title: "Разово или частями",
+    text: "Кредит, кредитная линия и овердрафт.",
+  },
+  {
+    icon: Laptop,
+    title: "Заявка онлайн",
+    text: "Ответ банка и документы в личном кабинете.",
+  },
+];
+
+const purposes = [
+  {
+    icon: Package,
+    title: "Закупить товары",
+    text: "Товары, сырьё и другие оборотные расходы.",
+    goal: "operations",
+  },
+  {
+    icon: CircleDollarSign,
+    title: "Купить оборудование",
+    text: "Станки, техника и оснащение бизнеса.",
+    goal: "equipment",
+  },
+  {
+    icon: Truck,
+    title: "Приобрести транспорт",
+    text: "Автомобиль или спецтехника для компании.",
+    goal: "auto",
+  },
+  {
+    icon: Building2,
+    title: "Купить помещение",
+    text: "Офис, склад или торговая недвижимость.",
+    goal: "property",
+  },
+];
+
+const questions = [
+  {
+    title: "С чего начать, если я не знаю, какой кредит нужен?",
+    answer:
+      "Выберите задачу бизнеса и укажите, сколько денег примерно потребуется. Название кредитного продукта знать не нужно: в подборе появятся подходящие варианты и различия между ними.",
+  },
+  {
+    title: "Какие цифры понадобятся для подбора?",
+    answer:
+      "Средняя выручка за месяц, операционные расходы и платежи по действующим кредитам. Если точных цифр под рукой нет, можно указать приблизительные значения или пропустить этот шаг. Перед отправкой заявки сведения нужно проверить.",
+  },
+  {
+    title: "Нужно ли заранее выбирать срок кредита?",
+    answer:
+      "Нет. Для разового кредита можно получить ориентир по сроку и платежу на основе введённых доходов и расходов. Для регулярных закупок полезнее знать, сколько времени проходит от оплаты товара до получения денег от продаж. Предложенный срок можно изменить в заявке.",
+  },
+  {
+    title: "Чем отличаются кредит, кредитная линия и овердрафт?",
+    answer:
+      "По разовому кредиту деньги выдают одной суммой. Кредитная линия позволяет получать их частями в пределах лимита. Овердрафт используют для платежей с расчётного счёта, когда собственных денег на нём временно не хватает.",
+  },
+  {
+    title: "Можно ли получить кредит без собственного имущества в залог?",
+    answer:
+      "В каталоге есть варианты без залога. Если вы покупаете транспорт или недвижимость, залогом может стать сам приобретаемый объект. Поэтому готовность заложить покупку и наличие другого имущества спрашиваются отдельно.",
+  },
+  {
+    title: "Подбор означает, что кредит уже одобрен?",
+    answer:
+      "Нет. Подбор показывает варианты по вашим ответам. Решение принимается после подачи заявки и проверки сведений. Результатом могут стать одобрение, другие условия, запрос документов или отказ с объяснением.",
+  },
+];
+
 export default function Home() {
   return (
-    <div className="page dashboard">
-      <div className="eyebrow">ВАШ БИЗНЕС. ВАШ СЛЕДУЮЩИЙ ШАГ.</div>
-      <div className="page-heading">
-        <h1>
-          Больше возможностей
-          <br />
-          для вашего бизнеса
-        </h1>
-        <p>
-          Найдём финансирование под вашу задачу.
-          <br />
-          От первого вопроса до решения — в одном кабинете.
-        </p>
-      </div>
-      <section className="hero">
-        <div className="hero-copy">
-          <span className="hero-badge">
-            <Sparkles size={15} />
-            Умный подбор
-          </span>
-          <h2>
-            Расскажите о планах.
-            <br />
-            Мы подберём кредит.
-          </h2>
-          <p>
-            Несколько простых вопросов вместо сложных
-            <br className="desktop-only" /> банковских терминов. Сравните
-            подходящие варианты
-            <br className="desktop-only" /> и сразу переходите к заявке.
-          </p>
-          <Link className="button primary" href="/survey">
-            Подобрать финансирование <ArrowRight size={18} />
-          </Link>
-          <span className="hero-note">
-            13 продуктов · Без регистрации для подбора
-          </span>
-        </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="art-orbit" />
-          <div className="art-card back-card">
-            <span>БИЗНЕС</span>
-            <strong>
-              Следующий
+    <div className="credit-landing">
+      <section className="credit-hero" aria-labelledby="credit-title">
+        <div className="credit-hero-inner landing-container">
+          <div className="credit-hero-copy">
+            <div className="credit-breadcrumb">
+              Бизнесу <span>/</span> Кредитование
+            </div>
+            <h1 id="credit-title">
+              Кредиты
               <br />
-              уровень
-            </strong>
-            <TrendingUp size={46} />
+              для бизнеса
+            </h1>
+            <p>
+              На закупку товаров, новое оборудование
+              <br className="credit-desktop-break" /> и другие задачи компании
+            </p>
+            <Link className="bank-button" href="/survey">
+              Поможем определиться с условиями
+            </Link>
           </div>
-          <div className="art-card front-card">
-            <span className="art-chip" />
-            <div className="art-alpha">А</div>
-            <span className="art-caption">Для больших планов</span>
-            <strong>α</strong>
-          </div>
-          <div className="art-small">
-            <ShieldCheck size={20} />
-            <span>
-              Понятные условия
-              <br />
-              <b>на каждом шаге</b>
-            </span>
+          <div className="credit-hero-art" aria-hidden="true">
+            <div className="credit-art-shadow" />
+            <span className="credit-art-letter">А</span>
+            <span className="credit-art-line" />
           </div>
         </div>
       </section>
-      <section className="section">
-        <div className="section-heading">
-          <h2>На что нужны деньги?</h2>
-          <Link href="/survey">
-            Все задачи <ChevronRight size={17} />
-          </Link>
-        </div>
-        <div className="purpose-grid">
-          {[
-            {
-              icon: ShoppingBag,
-              title: "Закупки и оборот",
-              text: "Товары, сырьё и текущие расходы",
-              goal: "operations",
-            },
-            {
-              icon: TrendingUp,
-              title: "Развитие бизнеса",
-              text: "Оборудование и новые проекты",
-              goal: "equipment",
-            },
-            {
-              icon: Truck,
-              title: "Транспорт",
-              text: "Автомобиль или спецтехника",
-              goal: "auto",
-            },
-            {
-              icon: Building2,
-              title: "Недвижимость",
-              text: "Офис, склад или своё помещение",
-              goal: "property",
-            },
-          ].map((x) => (
+
+      <section
+        className="credit-facts landing-container"
+        aria-label="О кредитовании бизнеса"
+      >
+        {facts.map(({ icon: Icon, title, text }) => (
+          <div className="credit-fact" key={title}>
+            <Icon size={28} strokeWidth={1.6} aria-hidden="true" />
+            <h2>{title}</h2>
+            <p>{text}</p>
+          </div>
+        ))}
+      </section>
+
+      <section
+        className="credit-section landing-container"
+        id="products"
+        aria-labelledby="purposes-title"
+      >
+        <h2 id="purposes-title">На что нужны деньги?</h2>
+        <div className="credit-purpose-grid">
+          {purposes.map(({ icon: Icon, title, text, goal }) => (
             <Link
-              key={x.goal}
-              className="purpose-card"
-              href={`/survey?goal=${x.goal}`}
+              key={goal}
+              href={`/survey?goal=${goal}`}
+              className="credit-purpose"
             >
-              <x.icon size={24} />
-              <h3>{x.title}</h3>
-              <p>{x.text}</p>
-              <ArrowRight size={17} />
+              <Icon size={30} strokeWidth={1.5} aria-hidden="true" />
+              <h3>{title}</h3>
+              <p>{text}</p>
+              <ArrowRight size={23} aria-hidden="true" />
             </Link>
           ))}
         </div>
       </section>
-      <section className="section process-section">
-        <div>
-          <div className="eyebrow">ПРОЗРАЧНЫЙ ПРОЦЕСС</div>
-          <h2>
-            Понятно, что происходит.
-            <br />
-            Ясно, что делать дальше.
-          </h2>
-          <p className="muted">
-            Один контекст, одна заявка, вся история рядом.
-          </p>
+
+      <section
+        className="credit-help-section"
+        id="selection"
+        aria-labelledby="selection-title"
+      >
+        <div className="landing-container credit-help-inner">
+          <div>
+            <h2 id="selection-title">
+              Не знаете, какие
+              <br />
+              условия выбрать?
+            </h2>
+            <p>
+              Начните с того, что знаете о своём бизнесе:
+              <br className="credit-desktop-break" /> сколько он зарабатывает и
+              на что тратит деньги.
+            </p>
+            <Link className="bank-button" href="/survey">
+              Перейти к подбору
+            </Link>
+          </div>
+          <div className="credit-preparation">
+            <h3>Что можно подготовить</h3>
+            <ul>
+              <li>Примерную сумму на вашу задачу</li>
+              <li>Средние поступления и расходы за месяц</li>
+              <li>Платежи по действующим кредитам</li>
+            </ul>
+            <p>
+              Не знаете точные цифры — укажите оценку.
+              <br />
+              Срок и параметры можно уточнить в заявке.
+            </p>
+          </div>
         </div>
-        <div className="process-list">
-          {[
-            {
-              icon: Sparkles,
-              title: "Подберите продукт",
-              text: "Цель, сумма и срок. Объясним, почему подходит каждый вариант.",
-            },
-            {
-              icon: ScanLine,
-              title: "Отправьте заявку",
-              text: "Данные бизнеса и финансовые показатели сохранятся в кабинете.",
-            },
-            {
-              icon: ShieldCheck,
-              title: "Получите решение",
-              text: "Условия, запрос сведений или причина отказа. Дальнейшие действия всегда видны.",
-            },
-          ].map((x, i) => (
-            <div className="process-step" key={x.title}>
-              <span className="step-number">0{i + 1}</span>
-              <div>
-                <h3>{x.title}</h3>
-                <p>{x.text}</p>
-              </div>
-              <x.icon size={22} />
-            </div>
+      </section>
+
+      <section
+        className="credit-section credit-faq landing-container"
+        id="questions"
+        aria-labelledby="questions-title"
+      >
+        <h2 id="questions-title">Ответы на вопросы</h2>
+        <div>
+          {questions.map(({ title, answer }) => (
+            <details key={title} className="credit-faq-item">
+              <summary>
+                {title}
+                <span className="credit-faq-symbol" aria-hidden="true" />
+              </summary>
+              <p>{answer}</p>
+            </details>
           ))}
         </div>
       </section>
-      <div className="info-strip">
-        <ShieldCheck size={22} />
-        <div>
-          <b>Можно проверить весь путь</b>
-          <p>
-            Войдите как предприниматель или сотрудник банка. Данные, проверки,
-            документы и выдача — учебные.
-          </p>
-        </div>
-        <Link href="/login">
-          Демо-вход <ArrowRight size={17} />
-        </Link>
-      </div>
     </div>
   );
 }

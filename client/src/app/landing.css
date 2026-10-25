@@ -1,0 +1,633 @@
+.bank-landing-shell {
+  background: #fff;
+}
+.landing-container {
+  width: min(1200px, calc(100% - 80px));
+  margin-inline: auto;
+}
+.landing-header {
+  background: #fff;
+  border-bottom: 1px solid rgba(3, 3, 6, 0.08);
+}
+.landing-header-inner {
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  gap: 46px;
+}
+.landing-brand {
+  padding: 0;
+  font-size: 20px;
+  flex-shrink: 0;
+  letter-spacing: -0.5px;
+}
+.landing-brand .brand-a {
+  font-size: 38px;
+}
+.landing-brand > span:last-child {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  gap: 1px;
+}
+.landing-brand b {
+  font-size: 17px;
+}
+.landing-nav {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+  font-size: 15px;
+}
+.landing-nav a {
+  padding-block: 20px;
+}
+.landing-nav a:hover {
+  color: var(--red);
+}
+.landing-account {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.landing-account .button {
+  border: 0;
+  background: #f2f3f5;
+  min-height: 48px;
+  border-radius: 8px;
+  font-size: 15px;
+  padding-inline: 19px;
+}
+.credit-landing h1,
+.credit-landing h2,
+.credit-landing h3 {
+  letter-spacing: -0.02em;
+}
+.credit-hero {
+  background: #f2f3f5;
+  overflow: hidden;
+}
+.credit-hero-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 490px;
+  padding-block: 40px 54px;
+  gap: 30px;
+}
+.credit-hero-copy {
+  position: relative;
+  z-index: 1;
+}
+.credit-breadcrumb {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 30px;
+}
+.credit-breadcrumb span {
+  margin-inline: 10px;
+  opacity: 0.6;
+}
+.credit-hero h1 {
+  font-size: clamp(48px, 5.5vw, 72px);
+  line-height: 1.04;
+  font-weight: 700;
+}
+.credit-hero-copy > p {
+  font-size: 21px;
+  line-height: 1.42;
+  margin-block: 23px 29px;
+}
+.bank-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 56px;
+  background: #ef3124;
+  color: #fff;
+  padding: 16px 24px;
+  border-radius: 10px;
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 500;
+  text-align: center;
+  transition: background 0.15s;
+}
+.bank-button:hover {
+  background: #d9251b;
+}
+.credit-hero-art {
+  position: relative;
+  width: 370px;
+  height: 325px;
+  flex-shrink: 0;
+  margin-right: 32px;
+}
+.credit-art-letter {
+  position: absolute;
+  color: #ef3124;
+  font-size: 330px;
+  line-height: 0.9;
+  font-weight: 700;
+  left: 60px;
+  top: -8px;
+  transform: rotate(-8deg);
+  text-shadow:
+    2px 3px 0 #d12b20,
+    4px 6px 0 #bd281e,
+    18px 22px 34px #d63d2620;
+}
+.credit-art-line {
+  display: block;
+  position: absolute;
+  width: 198px;
+  height: 26px;
+  border-radius: 1px;
+  background: #ef3124;
+  transform: rotate(-8deg);
+  left: 68px;
+  top: 291px;
+  box-shadow: 2px 4px 0 #c8281e;
+}
+.credit-art-shadow {
+  position: absolute;
+  width: 265px;
+  height: 25px;
+  background: #0b152b15;
+  bottom: -15px;
+  left: 35px;
+  border-radius: 50%;
+  filter: blur(17px);
+  transform: rotate(-7deg);
+}
+.credit-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+  padding-block: 49px 54px;
+  border-bottom: 1px solid rgba(3, 3, 6, 0.1);
+}
+.credit-fact svg {
+  color: var(--ink);
+  margin-bottom: 17px;
+}
+.credit-fact h2 {
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+.credit-fact p {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.45;
+  max-width: 245px;
+}
+.credit-section {
+  padding-block: 64px 72px;
+  scroll-margin-top: 28px;
+}
+.credit-section > h2 {
+  font-size: 40px;
+  line-height: 1.15;
+  margin-bottom: 34px;
+}
+.credit-purpose-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+.credit-purpose {
+  background: #f2f3f5;
+  padding: 27px 25px 24px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 246px;
+  transition: background 0.15s;
+}
+.credit-purpose:hover {
+  background: #e9eaed;
+}
+.credit-purpose > svg:first-child {
+  color: var(--red);
+  margin-bottom: 23px;
+}
+.credit-purpose h3 {
+  font-size: 21px;
+  line-height: 1.2;
+  margin-bottom: 9px;
+}
+.credit-purpose p {
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin-bottom: 22px;
+}
+.credit-purpose > svg:last-child {
+  margin-top: auto;
+  align-self: flex-end;
+}
+.credit-help-section {
+  background: #f2f3f5;
+  scroll-margin-top: 24px;
+}
+.credit-help-inner {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 100px;
+  padding-block: 60px;
+  align-items: start;
+}
+.credit-help-inner h2 {
+  font-size: 40px;
+  line-height: 1.15;
+}
+.credit-help-inner > div > p {
+  margin-block: 22px 26px;
+  font-size: 18px;
+  line-height: 1.45;
+}
+.credit-preparation {
+  padding-left: 36px;
+  border-left: 1px solid #0303061a;
+  margin-top: 7px;
+}
+.credit-preparation h3 {
+  font-size: 23px;
+}
+.credit-preparation ul {
+  padding-left: 19px;
+  display: grid;
+  gap: 13px;
+  margin-block: 20px 23px;
+  font-size: 17px;
+}
+.credit-preparation > p {
+  color: var(--muted);
+  font-size: 15px !important;
+  margin-bottom: 0 !important;
+}
+.credit-faq {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 80px;
+  padding-block: 72px 80px;
+}
+.credit-faq > h2 {
+  margin-top: 8px;
+}
+.credit-faq-item {
+  border: 0;
+  border-bottom: 1px solid #0303061a;
+  padding: 22px 0;
+}
+.credit-faq-item:first-child {
+  padding-top: 10px;
+}
+.credit-faq-item summary {
+  list-style: none;
+  align-items: center;
+  font-size: 18px;
+  line-height: 1.4;
+  gap: 22px;
+  font-weight: 500;
+}
+.credit-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+.credit-faq-symbol {
+  width: 18px;
+  height: 18px;
+  position: relative;
+  flex-shrink: 0;
+}
+.credit-faq-symbol:before,
+.credit-faq-symbol:after {
+  content: "";
+  width: 16px;
+  height: 2px;
+  background: var(--ink);
+  position: absolute;
+  top: 8px;
+  left: 0;
+}
+.credit-faq-symbol:after {
+  transform: rotate(90deg);
+  transition: transform 0.15s;
+}
+.credit-faq-item[open] .credit-faq-symbol:after {
+  transform: rotate(0);
+}
+.credit-faq-item[open] summary {
+  margin-bottom: 14px;
+}
+.credit-faq-item > p {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--muted);
+  padding-right: 40px;
+}
+.landing-footer {
+  background: #f2f3f5;
+  padding-block: 34px 38px;
+}
+.landing-footer-links {
+  display: flex;
+  gap: 29px;
+  font-size: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.landing-footer-links span {
+  font-weight: 700;
+  margin-right: auto;
+  font-size: 18px;
+}
+.landing-footer-links a:hover {
+  color: var(--red);
+}
+.landing-footer p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 24px;
+}
+.finance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-block: 20px;
+}
+.finance-grid > label {
+  display: grid;
+  grid-template-rows: 40px 46px auto;
+  gap: 7px;
+  align-items: start;
+}
+.finance-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 19px;
+}
+.finance-controls label {
+  flex-direction: column;
+  align-items: stretch;
+  font-weight: 400;
+  min-width: 220px;
+  max-width: 100%;
+}
+.finance-controls input[type="radio"],
+.finance-controls input[type="checkbox"] {
+  width: 17px;
+  min-height: 17px;
+  box-shadow: none;
+  accent-color: var(--red);
+}
+.guidance-note {
+  background: #f2f3f5;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-block: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.guidance-note p + p {
+  margin-top: 8px;
+}
+.guidance-note h3 {
+  font-size: 17px;
+  margin-bottom: 9px;
+}
+@media (max-width: 1100px) {
+  .landing-header-inner {
+    gap: 30px;
+  }
+  .landing-nav {
+    gap: 20px;
+    font-size: 14px;
+  }
+  .credit-hero-art {
+    margin-right: 0;
+    width: 320px;
+    transform: scale(0.9);
+    transform-origin: center right;
+  }
+  .credit-facts {
+    gap: 24px;
+  }
+  .credit-purpose-grid {
+    gap: 14px;
+  }
+  .credit-purpose {
+    padding: 23px 19px;
+  }
+  .credit-faq {
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 45px;
+  }
+  .credit-help-inner {
+    gap: 55px;
+  }
+}
+@media (max-width: 800px) {
+  .landing-container {
+    width: calc(100% - 48px);
+  }
+  .landing-header-inner {
+    min-height: 78px;
+    flex-wrap: wrap;
+    gap: 0;
+    padding-top: 18px;
+  }
+  .landing-brand {
+    font-size: 18px;
+  }
+  .landing-brand b {
+    font-size: 15px;
+  }
+  .landing-account .button {
+    font-size: 13px;
+    min-height: 42px;
+    padding-inline: 14px;
+  }
+  .landing-nav {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 13px;
+    padding-top: 6px;
+  }
+  .landing-nav a {
+    padding-block: 19px 14px;
+  }
+  .credit-hero-inner {
+    min-height: 420px;
+    padding-block: 25px 40px;
+    gap: 0;
+  }
+  .credit-breadcrumb {
+    font-size: 13px;
+    margin-bottom: 26px;
+  }
+  .credit-hero h1 {
+    font-size: 52px;
+  }
+  .credit-hero-copy > p {
+    font-size: 18px;
+  }
+  .credit-hero-art {
+    width: 230px;
+    margin-right: -16px;
+    transform: scale(0.67);
+    transform-origin: center right;
+  }
+  .credit-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-block: 35px;
+    gap: 30px;
+  }
+  .credit-fact h2 {
+    font-size: 20px;
+  }
+  .credit-fact p {
+    font-size: 15px;
+  }
+  .credit-section {
+    padding-block: 45px 50px;
+  }
+  .credit-section > h2,
+  .credit-help-inner h2 {
+    font-size: 34px;
+  }
+  .credit-purpose-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .credit-purpose {
+    min-height: 220px;
+    padding: 24px;
+  }
+  .credit-purpose h3 {
+    font-size: 21px;
+  }
+  .credit-help-inner {
+    padding-block: 44px;
+    gap: 30px;
+  }
+  .credit-help-inner > div > p {
+    font-size: 16px;
+  }
+  .credit-preparation {
+    padding-left: 22px;
+  }
+  .credit-preparation h3 {
+    font-size: 21px;
+  }
+  .credit-preparation ul {
+    font-size: 15px;
+  }
+  .credit-faq {
+    display: block;
+  }
+  .credit-faq > h2 {
+    margin-bottom: 28px;
+  }
+  .finance-grid {
+    grid-template-columns: 1fr;
+  }
+  .finance-grid > label {
+    display: flex;
+  }
+}
+@media (max-width: 540px) {
+  .landing-container {
+    width: calc(100% - 36px);
+  }
+  .landing-nav {
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+  }
+  .credit-hero-inner {
+    min-height: 0;
+    padding-block: 24px 38px;
+  }
+  .credit-hero h1 {
+    font-size: 48px;
+  }
+  .credit-hero-copy > p {
+    font-size: 18px;
+    margin-block: 20px 26px;
+  }
+  .credit-hero-art {
+    display: none;
+  }
+  .credit-desktop-break {
+    display: none;
+  }
+  .bank-button {
+    font-size: 15px;
+    min-height: 54px;
+    padding-inline: 21px;
+  }
+  .credit-facts {
+    gap: 29px 22px;
+  }
+  .credit-fact h2 {
+    font-size: 18px;
+  }
+  .credit-fact p {
+    font-size: 14px;
+  }
+  .credit-fact svg {
+    width: 25px;
+    height: 25px;
+    margin-bottom: 13px;
+  }
+  .credit-section > h2,
+  .credit-help-inner h2 {
+    font-size: 30px;
+  }
+  .credit-purpose {
+    padding: 20px 16px;
+    min-height: 224px;
+    border-radius: 12px;
+  }
+  .credit-purpose h3 {
+    font-size: 19px;
+  }
+  .credit-purpose p {
+    font-size: 14px;
+  }
+  .credit-help-inner {
+    display: block;
+  }
+  .credit-preparation {
+    border-left: 0;
+    border-top: 1px solid #0303061a;
+    padding: 26px 0 0;
+    margin-top: 32px;
+  }
+  .credit-faq-item summary {
+    font-size: 17px;
+  }
+  .credit-faq-item > p {
+    font-size: 15px;
+    padding-right: 25px;
+  }
+  .landing-footer-links {
+    gap: 17px 24px;
+    font-size: 13px;
+  }
+  .landing-footer-links span {
+    width: 100%;
+  }
+  .finance-controls {
+    align-items: stretch;
+  }
+  .finance-controls .button {
+    flex: 1;
+    white-space: normal;
+  }
+}

@@ -1,13 +1,34 @@
 @import "tailwindcss";
+@font-face {
+  font-family: "Alfa Interface Sans";
+  src: url("/fonts/alfa-interface-sans-regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Alfa Interface Sans";
+  src: url("/fonts/alfa-interface-sans-medium.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Alfa Interface Sans";
+  src: url("/fonts/alfa-interface-sans-bold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
 :root {
   --red: #ef3124;
-  --ink: #171719;
-  --muted: #78797f;
-  --bg: #f5f5f6;
+  --ink: rgba(3, 3, 6, 0.88);
+  --muted: rgba(4, 4, 19, 0.55);
+  --bg: #f2f3f5;
   --border: #e9e9ec;
   --green: #14785e;
   --radius: 20px;
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: "Alfa Interface Sans", Arial, Helvetica, sans-serif;
 }
 * {
   box-sizing: border-box;
@@ -19,7 +40,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -67,7 +88,7 @@ h1,
 h2,
 h3 {
   font-weight: 650;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.025em;
 }
 h1 {
   font-size: 42px;

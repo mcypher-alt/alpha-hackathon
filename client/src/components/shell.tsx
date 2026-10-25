@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
-  Sparkles,
+  SlidersHorizontal,
   Files,
   Newspaper,
   ShieldCheck,
@@ -16,7 +16,7 @@ import {
 import { session, setSession, type Session } from "@/lib/api";
 const nav = [
   ["/", "Обзор", LayoutDashboard],
-  ["/survey", "Подобрать кредит", Sparkles],
+  ["/survey", "Подобрать кредит", SlidersHorizontal],
   ["/my-applications", "Мои заявки", Files],
   ["/news", "Полезное для бизнеса", Newspaper],
 ] as const;
@@ -35,6 +35,65 @@ export function Shell({ children }: { children: React.ReactNode }) {
       window.removeEventListener("storage", update);
     };
   }, []);
+  if (path === "/") {
+    return (
+      <div className="bank-landing-shell">
+        <header className="landing-header">
+          <div className="landing-container landing-header-inner">
+            <Link
+              className="brand landing-brand"
+              href="/"
+              aria-label="Альфа Бизнес — главная"
+            >
+              <span className="brand-a">
+                А<span />
+              </span>
+              <span>
+                Альфа <b>Бизнес</b>
+              </span>
+            </Link>
+            <nav aria-label="Разделы страницы" className="landing-nav">
+              <a href="#products">Кредиты</a>
+              <a href="#selection">Подбор условий</a>
+              <a href="#questions">Вопросы и ответы</a>
+            </nav>
+            <div className="landing-account">
+              <Link
+                className="button"
+                href={
+                  auth
+                    ? auth.user.role === "CLIENT"
+                      ? "/my-applications"
+                      : "/bank"
+                    : "/login"
+                }
+              >
+                {auth ? "Личный кабинет" : "Войти в кабинет"}
+                <ArrowUpRight size={17} />
+              </Link>
+            </div>
+          </div>
+        </header>
+        <main id="main-content">{children}</main>
+        <footer className="landing-footer">
+          <div className="landing-container">
+            <div className="landing-footer-links">
+              <span>Альфа • Бизнес</span>
+              <Link href="/my-applications">Мои заявки</Link>
+              <Link href="/bank">Кабинет банка</Link>
+              <a href="/api/api/docs" target="_blank" rel="noreferrer">
+                Документация API
+              </a>
+            </div>
+            <p>
+              Учебный прототип. Не является офертой банка. Проверки, подписание
+              и выдача средств моделируются.
+            </p>
+          </div>
+        </footer>
+      </div>
+    );
+  }
   return (
     <div className="app-shell">
       <aside className={`sidebar ${menu ? "is-open" : ""}`}>
@@ -101,9 +160,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             >
               {menu ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span>Финансирование бизнеса</span>
-            <span className="topbar-divider" />
-            <span className="muted small">Всё в одном кабинете</span>
+            <Link href="/">Кредитование бизнеса</Link>
           </div>
           <div className="account">
             {auth ? (

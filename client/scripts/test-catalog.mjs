@@ -27,6 +27,13 @@ const catalog = load("../src/lib/catalog.ts");
 const { evaluate, matches } = load("../src/lib/recommendations.ts", {
   "./catalog": catalog,
 });
+const {
+  monthlyValue,
+  monthlyCash,
+  estimatePayment,
+  financingGuidance,
+  financialDraft,
+} = load("../src/lib/financing-guidance.ts");
 const product = (code) => catalog.PRODUCTS.find((p) => p.id === code);
 const eligible = (a) =>
   matches(a)
@@ -117,6 +124,208 @@ assert.equal(
     .length,
   0,
 );
+// A procurement cycle is a real business fact, not the term of an equipment loan.
+assert.equal(
+  evaluate(product("K1"), { purpose: "operations", cashCycle: "1" }).excluded
+    .length,
+  0,
+);
+assert.ok(
+  evaluate(product("L2"), { purpose: "operations", cashCycle: "12" }).excluded
+    .length > 0,
+);
+assert.equal(
+  evaluate(product("L1"), { purpose: "operations", cashCycle: "12" }).excluded
+    .length,
+  0,
+);
+assert.ok(
+  evaluate(product("L1"), {
+    purpose: "operations",
+    cashCycle: "12",
+  }).pending.some((x) => x.includes("подписки")),
+);
+assert.equal(
+  evaluate(product("L2"), { purpose: "operations", cashCycle: "unknown" })
+    .excluded.length,
+  0,
+);
+assert.ok(
+  evaluate(product("L2"), {
+    purpose: "operations",
+    cashCycle: "unknown",
+  }).pending.some((x) => x.includes("каждой")),
+);
+assert.equal(
+  evaluate(product("N1"), {
+    purpose: "property",
+    amount: "5000000",
+    age: "unknown",
+    collateral: "no",
+    asset: "yes",
+  }).excluded.length,
+  0,
+);
+assert.ok(
+  evaluate(product("N1"), { purpose: "property", age: "new" }).excluded.length >
+    0,
+);
+assert.ok(
+  evaluate(product("K2"), { purpose: "equipment", amount: "499999" }).excluded
+    .length > 0,
+);
+assert.equal(
+  evaluate(product("T1"), { purpose: "auto", amount: "100", asset: "yes" })
+    .excluded.length,
+  0,
+  "An unpublished minimum cannot be invented",
+);
+assert.ok(
+  evaluate(product("T1"), { purpose: "auto", amount: "50000001" }).excluded
+    .length > 0,
+);
+
+// Blank / invalid financial data is unknown. An explicit zero remains a zero.
+for (const value of [
+  undefined,
+  "",
+  " ",
+  "-1",
+  "NaN",
+  "Infinity",
+  "1000000000001",
+])
+  assert.equal(monthlyValue(value), null);
+assert.equal(monthlyValue("0"), 0);
+assert.equal(monthlyValue("125000.5"), 125000.5);
+const finance = {
+  monthlyRevenue: "1000000",
+  monthlyExpenses: "600000",
+  currentDebtLoad: "100000",
+};
+assert.equal(
+  monthlyCash(finance).freeCashFlow,
+  300000,
+  "Existing debt is deducted once after operating costs",
+);
+assert.equal(
+  monthlyCash(finance).paymentBudget,
+  150000,
+  "Half the remaining cash is an explicit illustration reserve",
+);
+assert.equal(
+  monthlyCash({ ...finance, currentDebtLoad: "" }).freeCashFlow,
+  null,
+  "Unknown existing payments must not silently become zero",
+);
+assert.equal(
+  monthlyCash({
+    monthlyRevenue: "0",
+    monthlyExpenses: "0",
+    currentDebtLoad: "0",
+  }).freeCashFlow,
+  0,
+);
+assert.equal(
+  monthlyCash({ ...finance, monthlyExpenses: "1000000" }).paymentBudget,
+  null,
+);
+assert.equal(estimatePayment(120000, 12, 0), 10000);
+assert.equal(estimatePayment(120000, 0), null);
+assert.equal(estimatePayment(NaN, 12), null);
+const suggestion = financingGuidance(product("K1"), 3000000, finance);
+assert.ok(
+  suggestion.suggestedTermMonths >= product("K1").minm &&
+    suggestion.suggestedTermMonths <= product("K1").maxm,
+);
+assert.ok(suggestion.monthlyPayment <= suggestion.paymentBudget);
+assert.ok(
+  suggestion.note.includes("21,5%") &&
+    suggestion.note.includes("не требование"),
+  "Show assumptions alongside a suggested term",
+);
+assert.equal(
+  financingGuidance(product("K1"), 3000000, {}).suggestedTermMonths,
+  null,
+);
+assert.equal(
+  financingGuidance(product("K1"), 3000000, { ...finance, currentDebtLoad: "" })
+    .monthlyPayment,
+  null,
+);
+assert.equal(
+  financingGuidance(product("K1"), 3000000, {
+    ...finance,
+    monthlyRevenue: "100000",
+  }).suggestedTermMonths,
+  null,
+);
+assert.equal(
+  financingGuidance(product("K1"), 30000000, {
+    monthlyRevenue: "10000",
+    monthlyExpenses: "0",
+    currentDebtLoad: "0",
+  }).suggestedTermMonths,
+  null,
+  "Do not offer an invented longer term when the product maximum is insufficient",
+);
+assert.equal(
+  financingGuidance(product("L3"), 3000000, finance).kind,
+  "project-line",
+);
+assert.equal(
+  financingGuidance(product("L3"), 3000000, finance).monthlyPayment,
+  null,
+  "A staged drawdown is not an annuity loan",
+);
+assert.equal(
+  financingGuidance(product("C1"), 500000, finance).monthlyPayment,
+  null,
+);
+assert.equal(
+  financingGuidance(product("L1"), 500000, { ...finance, cashCycle: "6" })
+    .suggestedTermMonths,
+  6,
+);
+assert.equal(
+  financingGuidance(product("L2"), 500000, { ...finance, cashCycle: "12" })
+    .suggestedTermMonths,
+  null,
+);
+assert.equal(
+  financingGuidance(product("O1"), 500000, { ...finance, cashCycle: "unknown" })
+    .suggestedTermMonths,
+  null,
+);
+
+// Preliminary routing does not turn low revenue into a credit rejection.
+const routing = {
+  purpose: "operations",
+  amount: "700000",
+  age: "old",
+  collateral: "no",
+  frequency: "repeat",
+  cashCycle: "6",
+};
+const normal = eligible({ ...routing, ...finance }).join(",");
+assert.equal(
+  eligible({
+    ...routing,
+    monthlyRevenue: "100",
+    monthlyExpenses: "1000",
+    currentDebtLoad: "500",
+  }).join(","),
+  normal,
+);
+assert.equal(eligible(routing).join(","), normal);
+assert.equal(financialDraft({}).monthlyRevenue, "");
+assert.equal(financialDraft({}).currentDebtLoad, "");
+assert.equal(
+  financialDraft({ ...finance, currentDebtLoad: "0" }).currentDebtLoad,
+  "0",
+);
+assert.equal(financialDraft(finance).monthlyRevenue, "1000000");
+assert.equal(financialDraft({ monthlyRevenue: "-100" }).monthlyRevenue, "");
 console.log(
-  "PASS: 15 product-routing assertions (PDF examples, collateral, uncertainty, tranche periods, confirmation)",
+  "PASS: product routing and financial guidance (PDF examples, unknowns, separate procurement cycle, no finance rejection, bounded payment illustration, draft transfer)",
 );

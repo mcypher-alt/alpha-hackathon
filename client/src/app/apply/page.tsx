@@ -11,6 +11,12 @@ import {
 } from "lucide-react";
 import { api, save, stored, session, money, payment } from "@/lib/api";
 import { PRODUCTS, type Answers } from "@/lib/catalog";
+import {
+  financingGuidance,
+  financialDraft,
+  monthlyCash,
+  monthlyValue,
+} from "@/lib/financing-guidance";
 import { ErrorBox } from "@/components/common";
 type Form = {
   productCode: string;
@@ -30,8 +36,8 @@ type Form = {
 };
 const empty: Form = {
   productCode: "K1",
-  requestedAmount: "3000000",
-  requestedTermMonths: "24",
+  requestedAmount: "",
+  requestedTermMonths: "",
   purpose: "Пополнение оборотных средств",
   inn: "",
   ogrn: "",
@@ -42,13 +48,16 @@ const empty: Form = {
   registrationDate: "",
   monthlyRevenue: "",
   monthlyExpenses: "",
-  currentDebtLoad: "0",
+  currentDebtLoad: "",
 };
 type Draft = {
   productCode?: string;
   amount?: string;
   term?: string;
   purpose?: string;
+  monthlyRevenue?: string;
+  monthlyExpenses?: string;
+  currentDebtLoad?: string;
   answers?: Answers;
 };
 export default function ApplyPage() {
@@ -63,21 +72,17 @@ export default function ApplyPage() {
   useEffect(() => {
     const d = stored<Draft>("alfa.draft", {}),
       f = stored<Form | null>("alfa.apply", null);
-    const product = PRODUCTS.find((p) => p.id === d.productCode);
+    const finances = financialDraft(d.answers || {});
     setForm(
       f && f.productCode === (d.productCode || "K1")
         ? f
         : {
             ...empty,
             productCode: d.productCode || "K1",
-            requestedAmount: d.amount || "3000000",
-            requestedTermMonths:
-              d.term && Number(d.term) > 0
-                ? d.term
-                : product?.maxm
-                  ? String(Math.min(24, product.maxm))
-                  : "24",
+            requestedAmount: d.amount || "",
+            requestedTermMonths: d.term && Number(d.term) > 0 ? d.term : "",
             purpose: d.purpose || empty.purpose,
+            ...finances,
           },
     );
     setAnswers(d.answers || {});
@@ -90,6 +95,11 @@ export default function ApplyPage() {
     PRODUCTS.find((p) => p.id === form.productCode) || PRODUCTS[0];
   const update = (key: keyof Form, value: string) =>
     setForm((p) => ({ ...p, [key]: value }));
+  const cash = monthlyCash(form);
+  const guidance = financingGuidance(product, Number(form.requestedAmount), {
+    ...answers,
+    ...form,
+  });
   async function profile(preset: string) {
     setBusy(preset);
     setError("");
@@ -138,6 +148,20 @@ export default function ApplyPage() {
       );
       return;
     }
+    if (
+      !form.monthlyRevenue.trim() ||
+      !form.monthlyExpenses.trim() ||
+      !form.currentDebtLoad.trim() ||
+      Number(form.monthlyRevenue) <= 0 ||
+      [form.monthlyRevenue, form.monthlyExpenses, form.currentDebtLoad].some(
+        (value) => monthlyValue(value) === null,
+      )
+    ) {
+      setError(
+        "Для отправки заявки нужны финансовые показатели: выручка, расходы и действующие платежи. Если платежей нет, укажите 0. Пропущенные ответы не заменяются нулями.",
+      );
+      return;
+    }
     setBusy("submit");
     try {
       const result = await api<{ id: string }>("/applications", {
@@ -151,7 +175,13 @@ export default function ApplyPage() {
           monthlyExpenses: Number(form.monthlyExpenses),
           currentDebtLoad: Number(form.currentDebtLoad),
           consent,
-          answers,
+          answers: {
+            ...answers,
+            monthlyRevenue: form.monthlyRevenue,
+            monthlyExpenses: form.monthlyExpenses,
+            currentDebtLoad: form.currentDebtLoad,
+            financialDataReviewed: "yes",
+          },
           purposeCode:
             answers.purpose === "other"
               ? answers.confirmedPurpose
@@ -177,8 +207,8 @@ export default function ApplyPage() {
       <div className="page-heading compact">
         <h1>Заявка на финансирование</h1>
         <p>
-          Проверьте условия и расскажите о бизнесе. Повторно вводить данные не
-          потребуется.
+          Перенесли ваши ответы. Проверьте суммы, дополните сведения и укажите
+          срок, на котором хотите остановиться.
         </p>
       </div>
       <ErrorBox message={error} />
@@ -208,6 +238,33 @@ export default function ApplyPage() {
                   </p>
                 </div>
               </div>
+              <div className="guidance-note">
+                <p>{guidance.note}</p>
+                {guidance.kind === "loan" &&
+                  guidance.monthlyPayment !== null &&
+                  guidance.suggestedTermMonths !== null && (
+                    <p>
+                      Расчётный ориентир: {guidance.suggestedTermMonths} мес. и
+                      около {money(guidance.monthlyPayment)} в месяц. Можно
+                      выбрать другой срок в пределах продукта.
+                    </p>
+                  )}
+                {!form.requestedTermMonths &&
+                  guidance.suggestedTermMonths !== null && (
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() =>
+                        update(
+                          "requestedTermMonths",
+                          String(guidance.suggestedTermMonths),
+                        )
+                      }
+                    >
+                      Использовать {guidance.suggestedTermMonths} мес.
+                    </button>
+                  )}
+              </div>
               <div className="form-grid">
                 <label>
                   Сумма финансирования, ₽
@@ -222,14 +279,19 @@ export default function ApplyPage() {
                 </label>
                 <label>
                   {product.kind === "tranche" || product.kind === "overdraft"
-                    ? "Возврат каждого транша, мес."
-                    : "Срок возврата, мес."}
+                    ? "За сколько вернуть каждую взятую сумму, мес."
+                    : "На какой срок оформить, мес."}
                   <input
                     required
                     type="number"
                     min={product.minm ?? 1}
                     max={product.maxm ?? 180}
                     value={form.requestedTermMonths}
+                    placeholder={
+                      product.maxm
+                        ? `До ${product.maxm} мес.`
+                        : "Нужно уточнить"
+                    }
                     onChange={(e) =>
                       update("requestedTermMonths", e.target.value)
                     }
@@ -351,9 +413,23 @@ export default function ApplyPage() {
                 <span className="section-number">03</span>Финансовые показатели
               </h2>
               <p className="muted">
-                Средние значения за месяц. Платежи по действующим кредитам
-                укажите отдельно от расходов.
+                Обычные значения за месяц. Расходы включают аренду, закупки,
+                зарплаты и налоги. Кредитные платежи укажите отдельно.
               </p>
+              {(answers.monthlyRevenue ||
+                answers.monthlyExpenses ||
+                answers.currentDebtLoad) && (
+                <div className="guidance-note">
+                  <p>
+                    Перенесли{" "}
+                    {answers.financeAccuracy === "exact"
+                      ? "суммы из ваших ответов"
+                      : "ваши приблизительные оценки"}
+                    . Перед отправкой проверьте их. Неизвестные показатели
+                    оставили пустыми.
+                  </p>
+                </div>
+              )}
               <div className="form-grid">
                 <label>
                   Выручка в месяц, ₽
@@ -367,7 +443,7 @@ export default function ApplyPage() {
                   />
                 </label>
                 <label>
-                  Расходы в месяц, ₽
+                  Расходы без кредитных платежей, ₽
                   <input
                     required
                     type="number"
@@ -389,12 +465,11 @@ export default function ApplyPage() {
                   />
                 </label>
                 <div className="financial-hint">
-                  <span>До кредитных платежей остаётся</span>
+                  <span>После расходов и текущих кредитов остаётся</span>
                   <strong>
-                    {money(
-                      Number(form.monthlyRevenue) -
-                        Number(form.monthlyExpenses),
-                    )}
+                    {cash.freeCashFlow === null
+                      ? "Нужно дополнить данные"
+                      : money(cash.freeCashFlow)}
                   </strong>
                 </div>
               </div>

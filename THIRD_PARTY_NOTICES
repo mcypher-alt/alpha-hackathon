@@ -17,6 +17,12 @@ Core runtime
   https://www.postgresql.org/about/licence/
 
 UI and supporting packages (where retained in package-lock.json)
+- Alfa Interface Sans web fonts (regular/medium/bold) — official Core Components
+  repository, commit e6e25f66d4eace168693d33f4636b3bffd23ef1b. The upstream MIT
+  notice is retained in client/public/fonts/LICENSE-core-ds.txt. Source URLs and
+  SHA-256 are in client/public/fonts/SOURCE.md; no separate font license was
+  identified in the inspected upstream tree.
+  https://github.com/core-ds/core-components
 - Tailwind CSS — Tailwind Labs — MIT.
 - Lucide — Lucide contributors — ISC.
 - Ant Design / @ant-design/cssinjs — Ant Group contributors — MIT.
