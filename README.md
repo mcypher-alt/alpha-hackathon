@@ -6,6 +6,9 @@
 
 ![Веб-кабинет](docs/screenshots/cabinet.png)
 
+[![Demo Stand](https://shields.io)](https://uk-web.ru)
+
+
 ## Быстрый запуск
 
 Нужны Docker Engine / Docker Desktop с Linux containers и Docker Compose v2, интернет для первой загрузки образов и npm-пакетов. Рекомендуется 4 CPU, 6 ГБ свободной RAM и 5 ГБ диска. После сборки работа не требует внешних API или API-ключей.
